@@ -6,6 +6,7 @@ import {
   createOKR, deleteOKR, createTheme, deleteTheme,
   createCapability, deleteCapability, createProduct,
   updateProduct, deleteProduct,
+  updatePreferences,
 } from "../lib/api";
 import { normalizeInitiative, denormalizeInitiative } from "../lib/tokens";
 
@@ -29,6 +30,7 @@ export function AppProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userName, setUserName] = useState("Nicole");
+  const [roadmapLastSaved, setRoadmapLastSaved] = useState(null);
 
   // ── Bootstrap: load everything on mount ────────────────────
   useEffect(() => {
@@ -49,6 +51,9 @@ export function AppProvider({ children }) {
         const org = foundRes.data;
         setOrgId(org.id);
         setUserName(org.preferences?.user_name || "Nicole");
+        if (org.preferences?.preferences?.roadmap_last_saved) {
+          setRoadmapLastSaved(new Date(org.preferences.preferences.roadmap_last_saved));
+        }
         setFoundationState({
           id: org.id,
           name: org.name,
@@ -236,6 +241,22 @@ export function AppProvider({ children }) {
     return null;
   }, [orgId]);
 
+  // ── Roadmap last saved ──────────────────────────────────────
+  const saveRoadmapTimestamp = useCallback(async () => {
+    if (!orgId) return;
+    const now = new Date();
+    setRoadmapLastSaved(now);
+    try {
+      await updatePreferences({
+        org_id: orgId,
+        user_name: userName,
+        preferences: { roadmap_last_saved: now.toISOString() },
+      });
+    } catch (err) {
+      console.error("Save roadmap timestamp error:", err);
+    }
+  }, [orgId, userName]);
+
   // ── Context value ────────────────────────────────────────────
   const value = {
     orgId, loading, error, userName,
@@ -246,6 +267,9 @@ export function AppProvider({ children }) {
     addTheme, removeTheme, updateThemesLocal,
     addCapability, removeCap, updateCapsLocal,
     addProduct, updateProductLocal, removeProduct,
+
+    // Roadmap timestamp
+    roadmapLastSaved, saveRoadmapTimestamp,
 
     // Initiatives
     initiatives, updateIni, addInitiative,

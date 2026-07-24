@@ -6,7 +6,7 @@ import { callAI } from "../lib/api";
 
 // ─── Portfolio ────────────────────────────────────────────────
 export function Portfolio() {
-  const { initiatives, foundation, updateIni } = useApp();
+  const { initiatives, foundation, updateIni, roadmapLastSaved, saveRoadmapTimestamp } = useApp();
   const [aiSummary, setAiSummary] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -126,10 +126,9 @@ function toDateStr(d) {
   return d.toISOString().split("T")[0];
 }
 
-function GanttTimeline({ initiatives, updateIni }) {
+function GanttTimeline({ initiatives, updateIni, roadmapLastSaved, saveRoadmapTimestamp }) {
   const timelineRef = useRef(null);
   const dragging = useRef(null);
-  const [lastSaved, setLastSaved] = useState(null);
 
   const year = new Date().getFullYear();
   const timelineStart = new Date(year, 0, 1);
@@ -178,7 +177,7 @@ function GanttTimeline({ initiatives, updateIni }) {
     dragging.current = null;
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
-    setLastSaved(new Date());
+    saveRoadmapTimestamp();
   };
 
   useEffect(() => () => {
@@ -192,9 +191,9 @@ function GanttTimeline({ initiatives, updateIni }) {
         <div style={css.secHead}>Program Roadmap — {year}</div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2 }}>
           <div style={{ fontSize:11, color:T.muted }}>Drag bars to move · Drag edges to resize</div>
-          {lastSaved && (
+          {roadmapLastSaved && (
             <div style={{ fontSize:10, color:T.green }}>
-              ✓ Saved {lastSaved.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", second:"2-digit" })}
+              ✓ Last saved {roadmapLastSaved.toLocaleDateString([], { month:"short", day:"numeric" })} at {roadmapLastSaved.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })}
             </div>
           )}
         </div>
@@ -252,20 +251,20 @@ function GanttTimeline({ initiatives, updateIni }) {
           return (
             <div key={ini.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"7px 0", borderBottom:`1px solid ${T.border}` }}>
               <input type="color" value={color}
-                onChange={e => { updateIni(ini.id, d => ({ ...d, bar_color: e.target.value })); setLastSaved(new Date()); }}
+                onChange={e => { updateIni(ini.id, d => ({ ...d, bar_color: e.target.value })); saveRoadmapTimestamp(); }}
                 style={{ width:24, height:24, border:"none", borderRadius:4, cursor:"pointer", background:"none", padding:0 }} title="Change bar color"/>
               <div style={{ fontSize:12, color:T.loud, fontWeight:600, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ini.title}</div>
               <Tag label={stageLabel(ini.stage)} color={stageColor(ini.stage)} />
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontSize:10, color:T.muted }}>Start</span>
                 <input type="date" value={toDateStr(start)}
-                  onChange={e => { updateIni(ini.id, d => ({ ...d, roadmap_start: e.target.value })); setLastSaved(new Date()); }}
+                  onChange={e => { updateIni(ini.id, d => ({ ...d, roadmap_start: e.target.value })); saveRoadmapTimestamp(); }}
                   style={{ ...css.input, width:130, fontSize:11, padding:"4px 8px" }} />
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontSize:10, color:T.muted }}>End</span>
                 <input type="date" value={toDateStr(end)}
-                  onChange={e => { updateIni(ini.id, d => ({ ...d, roadmap_end: e.target.value })); setLastSaved(new Date()); }}
+                  onChange={e => { updateIni(ini.id, d => ({ ...d, roadmap_end: e.target.value })); saveRoadmapTimestamp(); }}
                   style={{ ...css.input, width:130, fontSize:11, padding:"4px 8px" }} />
               </div>
             </div>
@@ -278,7 +277,7 @@ function GanttTimeline({ initiatives, updateIni }) {
 
 // ─── PI Planning ──────────────────────────────────────────────
 export function PIPlanning() {
-  const { initiatives, foundation, updateIni } = useApp();
+  const { initiatives, foundation, updateIni, roadmapLastSaved, saveRoadmapTimestamp } = useApp();
   const [loading, setLoading] = useState(false);
   const [piCards, setPiCards] = useState(null);
   const approved = initiatives.filter(i => i.approved);
@@ -316,7 +315,7 @@ export function PIPlanning() {
       <div style={css.h2}>PI Planning</div>
       <div style={css.sub}>Program Increment planning — interactive roadmap, objectives, risks, and dependencies.</div>
 
-      <GanttTimeline initiatives={initiatives} updateIni={updateIni} />
+      <GanttTimeline initiatives={initiatives} updateIni={updateIni} roadmapLastSaved={roadmapLastSaved} saveRoadmapTimestamp={saveRoadmapTimestamp} />
 
       <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
         <button style={css.btnGold} onClick={genPI} disabled={loading || !approved.length}>
