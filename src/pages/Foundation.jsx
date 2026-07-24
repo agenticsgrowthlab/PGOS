@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T, css } from "../lib/tokens";
 import { AIBox, Tag } from "../components/ui";
 import { useApp } from "../contexts/AppContext";
-import { callAI } from "../lib/api";
-import { uploadFile } from "../lib/api";
+import { callAI, listCompetitorSnapshots, createCompetitorSnapshot, uploadFile } from "../lib/api";
 
 const TABS = [
   ["mission", "Mission & Vision"],
@@ -17,28 +16,55 @@ const TABS = [
 
 
 // ─── Competitor Analysis Component ───────────────────────────
+
 function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeCompetitor }) {
+  const { orgId } = useApp();
   const [collapsed, setCollapsed] = useState(() => {
-    // Default: first open, rest collapsed
     const s = {};
     competitors.forEach((c, i) => { s[c.id] = i > 0; });
     return s;
   });
   const [aiLoading, setAiLoading] = useState(false);
-  const [snapshots, setSnapshots] = useState([]); // [{date, data}]
+  const [snapshots, setSnapshots] = useState([]); // persisted from Neon
+  const [snapsLoading, setSnapsLoading] = useState(true);
   const [activeSnap, setActiveSnap] = useState(null); // null = live
 
-  // Sync collapse state when competitors change
   const toggleCollapse = (id) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
+
+  // Load persisted snapshots on mount
+  useEffect(() => {
+    if (!orgId) return;
+    listCompetitorSnapshots(orgId)
+      .then(r => setSnapshots(r?.data || []))
+      .catch(() => setSnapshots([]))
+      .finally(() => setSnapsLoading(false));
+  }, [orgId]);
 
   const runAiRefresh = async () => {
     setAiLoading(true);
     try {
       const text = await callAI("competitor_analysis", { foundation, competitors });
       if (text) {
-        const snap = { date: new Date().toISOString(), summary: text };
-        setSnapshots(prev => [snap, ...prev]);
-        setActiveSnap(0);
+        // Build scan_data: capture current scores for delta comparison
+        const scan_data = {};
+        competitors.forEach(c => {
+          scan_data[c.id] = {
+            name: c.name,
+            overall_score: c.overall_score,
+            digital_score: c.digital_score,
+            mobile_score: c.mobile_score,
+            claims_score: c.claims_score,
+            portal_score: c.portal_score,
+            app_store_rating: c.app_store_rating,
+            threat_level: c.threat_level,
+          };
+        });
+        // Persist to Neon
+        const saved = await createCompetitorSnapshot({ org_id: orgId, summary: text, scan_data });
+        if (saved?.data) {
+          setSnapshots(prev => [saved.data, ...prev]);
+          setActiveSnap(0);
+        }
       }
     } catch (err) {
       console.error("AI competitor refresh error:", err);
@@ -47,8 +73,27 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
     }
   };
 
+  // Build delta between two snapshots (or live vs last snap)
+  const getDelta = (competitorId, field) => {
+    if (snapshots.length < 2) return null;
+    const curr = snapshots[0]?.scan_data?.[competitorId]?.[field];
+    const prev = snapshots[1]?.scan_data?.[competitorId]?.[field];
+    if (curr == null || prev == null) return null;
+    const diff = Number(curr) - Number(prev);
+    return diff === 0 ? null : diff;
+  };
+
+  const DeltaBadge = ({ delta }) => {
+    if (delta === null) return null;
+    const color = delta > 0 ? T.red : T.green; // higher score = worse for us
+    return (
+      <span style={{ fontSize: 9, fontWeight: 700, color, marginLeft: 4 }}>
+        {delta > 0 ? `▲${delta}` : `▼${Math.abs(delta)}`}
+      </span>
+    );
+  };
+
   const scoreColor = (s) => s >= 85 ? T.red : s >= 70 ? T.amber : T.green;
-  const displayComps = competitors; // future: could filter by snapshot
 
   return (
     <div>
@@ -56,7 +101,11 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={css.secHead}>Competitive Analysis</div>
-          <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>Digital experience, claims, and portal positioning vs competitors</div>
+          <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
+            Internal scoring model — PM-assessed across digital experience, claims, and portal positioning.
+            {" "}<span style={{ color: T.gold }}>Scores are not sourced from app stores.</span>
+            {" "}App Store rating is the only external data point (from public iOS/Android listings).
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button style={css.btnOut} onClick={runAiRefresh} disabled={aiLoading}>
@@ -66,39 +115,82 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
         </div>
       </div>
 
-      {/* Snapshot toggle */}
-      {snapshots.length > 0 && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+      {/* Snapshot history pills */}
+      {!snapsLoading && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em" }}>Scan History:</span>
           <button
             onClick={() => setActiveSnap(null)}
             style={{ fontSize: 11, padding: "4px 12px", borderRadius: 20, border: `1px solid ${activeSnap === null ? T.gold : T.border}`, background: activeSnap === null ? T.goldD : "transparent", color: activeSnap === null ? T.gold : T.muted, cursor: "pointer" }}>
             Live Data
           </button>
           {snapshots.map((s, i) => (
-            <button key={i}
+            <button key={s.id || i}
               onClick={() => setActiveSnap(i)}
               style={{ fontSize: 11, padding: "4px 12px", borderRadius: 20, border: `1px solid ${activeSnap === i ? T.steel : T.border}`, background: activeSnap === i ? T.iceD : "transparent", color: activeSnap === i ? T.ice : T.muted, cursor: "pointer" }}>
-              {new Date(s.date).toLocaleDateString([], { month: "short", day: "numeric" })} · {new Date(s.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {new Date(s.created_at).toLocaleDateString([], { month: "short", day: "numeric" })} · {new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </button>
           ))}
+          {snapshots.length === 0 && <span style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>No scans yet — click AI Refresh to run first scan</span>}
         </div>
       )}
 
-      {/* AI snapshot content */}
+      {/* AI snapshot narrative */}
       {activeSnap !== null && snapshots[activeSnap] && (
         <div style={{ ...css.card, borderLeft: `3px solid ${T.steel}`, marginBottom: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: T.ice, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-            ◆ AI Analysis · {new Date(snapshots[activeSnap].date).toLocaleString()}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: T.ice, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              ◆ AI Intelligence Scan · {new Date(snapshots[activeSnap].created_at).toLocaleString()}
+            </div>
+            {activeSnap === 0 && snapshots.length >= 2 && (
+              <div style={{ fontSize: 10, color: T.amber, fontStyle: "italic" }}>Latest scan — see delta badges on scores below ▲▼</div>
+            )}
           </div>
           <div style={{ fontSize: 12, color: T.body, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{snapshots[activeSnap].summary}</div>
         </div>
       )}
 
+      {/* What changed section — only when on latest snap and 2+ scans exist */}
+      {activeSnap === 0 && snapshots.length >= 2 && (
+        <div style={{ ...css.card, borderLeft: `3px solid ${T.amber}`, marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.amber, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+            △ What Changed Since Previous Scan · {new Date(snapshots[1].created_at).toLocaleDateString()}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+            {competitors.map(c => {
+              const fields = ["overall_score","digital_score","mobile_score","claims_score","portal_score"];
+              const labels = ["Overall","Digital","Mobile","Claims","Portal"];
+              const changes = fields.map((f, i) => ({ label: labels[i], delta: getDelta(c.id, f) })).filter(x => x.delta !== null);
+              if (!changes.length) return null;
+              return (
+                <div key={c.id} style={{ background: T.ink3, borderRadius: 8, padding: "8px 12px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.loud, marginBottom: 5 }}>{c.name}</div>
+                  {changes.map(({ label, delta }) => (
+                    <div key={label} style={{ fontSize: 11, color: T.muted, display: "flex", justifyContent: "space-between" }}>
+                      <span>{label}</span>
+                      <span style={{ fontWeight: 700, color: delta > 0 ? T.red : T.green }}>
+                        {delta > 0 ? `▲ +${delta}` : `▼ ${delta}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            }).filter(Boolean)}
+            {competitors.every(c => {
+              const fields = ["overall_score","digital_score","mobile_score","claims_score","portal_score"];
+              return fields.every(f => getDelta(c.id, f) === null);
+            }) && (
+              <div style={{ fontSize: 12, color: T.muted, fontStyle: "italic" }}>No score changes detected between scans.</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Scorecard header */}
-      {displayComps.length > 0 && (
+      {competitors.length > 0 && (
         <div style={{ ...css.card, background: T.ink3, marginBottom: 0, padding: "8px 16px", borderRadius: "10px 10px 0 0" }}>
           <div style={{ display: "grid", gridTemplateColumns: "32px 1.6fr 70px 70px 70px 70px 70px 90px 80px 24px", gap: 6, alignItems: "center" }}>
-            {["#", "Competitor", "Overall", "Digital", "Mobile", "Claims", "Portal", "App Store", "Threat", ""].map(h => (
+            {["#", "Competitor", "Overall", "Digital", "Mobile", "Claims", "Portal", "App Store ★", "Threat", ""].map(h => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{h}</div>
             ))}
           </div>
@@ -106,20 +198,16 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
       )}
 
       {/* Competitor rows */}
-      {displayComps.map((c, idx) => {
+      {competitors.map((c, idx) => {
         const threatColor = c.threat_level === "high" ? T.red : c.threat_level === "medium" ? T.amber : T.green;
         const tierColor = c.tier === "disruptor" ? T.purple : c.tier === "primary" ? T.steel : T.muted;
         const isCollapsed = collapsed[c.id] !== false && idx > 0 ? true : !!collapsed[c.id];
-        const isLast = idx === displayComps.length - 1;
+        const isLast = idx === competitors.length - 1;
 
         return (
           <div key={c.id} style={{ ...css.card, marginBottom: isLast ? 0 : 4, borderRadius: isLast && isCollapsed ? "0 0 10px 10px" : "0", borderTop: "none", padding: "10px 16px" }}>
-
-            {/* Summary row — always visible */}
             <div style={{ display: "grid", gridTemplateColumns: "32px 1.6fr 70px 70px 70px 70px 70px 90px 80px 24px", gap: 6, alignItems: "center" }}>
-              {/* Rank */}
               <div style={{ fontSize: 12, fontWeight: 900, color: T.gold }}>#{idx + 1}</div>
-              {/* Name + tier */}
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>{c.name}</div>
                 <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
@@ -128,29 +216,40 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
                   {c.jd_power_rank > 0 && <span style={{ fontSize: 10, color: T.muted }}>JD Power #{c.jd_power_rank}</span>}
                 </div>
               </div>
-              {/* Scores */}
-              {[c.overall_score, c.digital_score, c.mobile_score, c.claims_score, c.portal_score].map((s, i) => (
-                <div key={i} style={{ textAlign: "center", fontSize: 17, fontWeight: 800, color: s > 0 ? scoreColor(s) : T.muted }}>{s || "—"}</div>
-              ))}
-              {/* App store */}
+              {/* Scores with delta badges from most recent vs previous scan */}
+              {[
+                [c.overall_score, "overall_score"],
+                [c.digital_score, "digital_score"],
+                [c.mobile_score, "mobile_score"],
+                [c.claims_score, "claims_score"],
+                [c.portal_score, "portal_score"],
+              ].map(([s, field], i) => {
+                const delta = activeSnap === 0 ? getDelta(c.id, field) : null;
+                return (
+                  <div key={i} style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 17, fontWeight: 800, color: s > 0 ? scoreColor(s) : T.muted }}>{s || "—"}</span>
+                    {delta !== null && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: delta > 0 ? T.red : T.green, display: "block" }}>
+                        {delta > 0 ? `▲${delta}` : `▼${Math.abs(delta)}`}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
               <div style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: c.app_store_rating > 0 ? T.gold : T.muted }}>
                 {c.app_store_rating > 0 ? `★ ${Number(c.app_store_rating).toFixed(1)}` : "—"}
               </div>
-              {/* Threat */}
               <div style={{ textAlign: "center" }}>
                 <Tag label={c.threat_level || "—"} color={threatColor} />
               </div>
-              {/* Collapse toggle */}
               <button onClick={() => toggleCollapse(c.id)}
                 style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 14, padding: 0, textAlign: "center" }}>
                 {isCollapsed ? "▸" : "▾"}
               </button>
             </div>
 
-            {/* Expanded detail — hidden when collapsed */}
             {!isCollapsed && (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-                {/* Key differentiator + advantage/gap */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", marginBottom: 6 }}>Key Differentiator</div>
@@ -167,8 +266,6 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
                     </div>
                   </div>
                 </div>
-
-                {/* Strengths & Weaknesses */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", marginBottom: 6 }}>Strengths</div>
@@ -183,7 +280,6 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
                     ))}
                   </div>
                 </div>
-
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
                   <button style={{ ...css.btnGhost, fontSize: 11, color: T.red }} onClick={() => removeCompetitor(c.id)}>Remove</button>
                 </div>
@@ -193,21 +289,28 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
         );
       })}
 
-      {displayComps.length === 0 && (
+      {competitors.length === 0 && (
         <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
           No competitors yet. Run the Mercury competitor seed SQL or click + Add.
         </div>
       )}
 
-      {/* Legend */}
+      {/* Legend + data source note */}
       <div style={{ ...css.card, marginTop: 8, borderRadius: "0 0 10px 10px", borderTop: "none" }}>
-        <div style={{ fontSize: 11, color: T.muted, display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 11, color: T.muted, display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 6 }}>
           <span>Scores · <strong style={{ color: T.red }}>85+</strong> threat · <strong style={{ color: T.amber }}>70–84</strong> moderate · <strong style={{ color: T.green }}>&lt;70</strong> gap opportunity</span>
           <span><strong style={{ color: T.steel }}>primary</strong> direct · <strong style={{ color: T.purple }}>disruptor</strong> digital-native · <strong style={{ color: T.muted }}>secondary</strong> adjacent</span>
         </div>
+        <div style={{ fontSize: 10, color: T.muted, fontStyle: "italic" }}>
+          ★ App Store rating is sourced from public iOS/Android listings. All other scores (Overall, Digital, Mobile, Claims, Portal) are PM-assessed using the PGI Competitive Scoring Model — see References → Score Methodology for exact formulas.
+        </div>
       </div>
 
-      {aiLoading && <div style={{ ...css.card, marginTop: 8 }}><div style={{ color: T.gold, fontStyle: "italic" }}>◆ AI is analyzing your competitive landscape…</div></div>}
+      {aiLoading && (
+        <div style={{ ...css.card, marginTop: 8 }}>
+          <div style={{ color: T.gold, fontStyle: "italic" }}>◆ AI is analyzing your competitive landscape… scanning digital presence, claims experience, and mobile capabilities…</div>
+        </div>
+      )}
     </div>
   );
 }

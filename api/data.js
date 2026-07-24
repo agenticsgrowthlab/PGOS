@@ -422,6 +422,34 @@ async function handlePreferences(sql, action, payload) {
   }
 }
 
+// ─── COMPETITOR SNAPSHOTS ──────────────────────────────────────
+async function handleCompetitorSnapshots(sql, action, payload) {
+  switch (action) {
+    case "list": {
+      const rows = await sql`
+        SELECT id, org_id, created_at, summary,
+               scan_data
+        FROM competitor_snapshots
+        WHERE org_id=${payload.org_id}
+        ORDER BY created_at DESC
+        LIMIT 20
+      `;
+      return { data: rows };
+    }
+    case "create": {
+      const { org_id, summary, scan_data } = payload;
+      const rows = await sql`
+        INSERT INTO competitor_snapshots (org_id, summary, scan_data)
+        VALUES (${org_id}, ${summary}, ${JSON.stringify(scan_data || {})}::jsonb)
+        RETURNING *
+      `;
+      return { data: rows[0] };
+    }
+    default:
+      throw new Error(`Unknown action for competitor_snapshots: ${action}`);
+  }
+}
+
 // ─── INITIATIVE METRICS ────────────────────────────────────────
 async function handleMetrics(sql, action, payload) {
   switch (action) {
@@ -523,6 +551,7 @@ const resourceMap = {
   preferences: handlePreferences,
   competitors: handleCompetitors,
   metrics: handleMetrics,
+  competitor_snapshots: handleCompetitorSnapshots,
 };
 
 // ─── HANDLER ──────────────────────────────────────────────────

@@ -46,10 +46,10 @@ export function Sidebar({ view, setView }) {
       {/* Logo */}
       <div style={{ padding: "18px 18px 14px", borderBottom: `1px solid ${T.border}` }}>
         <div style={{ fontSize: 20, fontWeight: 900, color: T.white, letterSpacing: "-0.03em" }}>
-          <span style={{ color: T.gold }}>P</span>GOS
+          <span style={{ color: T.gold }}>P</span>GI
         </div>
         <div style={{ fontSize: 10, color: T.muted, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 1 }}>
-          Product Growth OS
+          Product Growth Intelligence
         </div>
       </div>
 
@@ -93,7 +93,8 @@ export function Sidebar({ view, setView }) {
 
         {sectionLabel("References")}
         {navBtn("ref_framework", "NCM PM Framework")}
-        {navBtn("ref_guide",     "How To Use PGOS")}
+        {navBtn("ref_guide",     "How To Use PGI")}
+        {navBtn("ref_scores",    "Score Methodology")}
 
       </nav>
 

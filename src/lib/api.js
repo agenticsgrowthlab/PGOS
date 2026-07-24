@@ -86,6 +86,10 @@ export const createCompetitor     = (payload) => data("competitors", "create", p
 export const updateCompetitor     = (payload) => data("competitors", "update", payload);
 export const deleteCompetitor     = (id)      => data("competitors", "delete", { id });
 
+// Competitor Snapshots (persistent AI scans)
+export const listCompetitorSnapshots = (org_id) => data("competitor_snapshots", "list", { org_id });
+export const createCompetitorSnapshot = (payload) => data("competitor_snapshots", "create", payload);
+
 // Initiative Metrics (time-series)
 export const listMetrics          = (initiative_id) => data("metrics", "list", { initiative_id });
 export const createMetric         = (payload)       => data("metrics", "create", payload);
