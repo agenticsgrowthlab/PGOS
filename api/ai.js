@@ -200,6 +200,45 @@ McKinsey style: direct, numbered, evidence-cited. Every claim traceable to data 
       break;
     }
 
+    case "competitor_refresh": {
+      // Per-competitor structured refresh — returns JSON with updated fields
+      const c = payload.competitor || {};
+      const orgName = foundation?.name || "this company";
+      const ourScores = payload.ourScores;
+      const ourBlock = ourScores
+        ? `${orgName} self-scores: Overall ${ourScores.overall_score||"?"}, Digital ${ourScores.digital_score||"?"}, Mobile ${ourScores.mobile_score||"?"}, Claims ${ourScores.claims_score||"?"}, App Store★ ${ourScores.app_store_rating||"?"}`
+        : `${orgName} self-scores: not entered — use only the advantage/gap context provided.`;
+
+      userContent = `You are a senior competitive intelligence analyst. Refresh the intelligence for ONE competitor and return ONLY valid JSON — no preamble, no markdown, no explanation outside the JSON object.
+
+Company being analyzed: ${orgName}
+${ourBlock}
+
+Competitor to refresh:
+Name: ${c.name}
+Tier: ${c.tier} | Threat: ${c.threat_level}
+Current scores (PM-assessed 0–100): Overall ${c.overall_score}, Digital ${c.digital_score}, Mobile ${c.mobile_score}, Claims ${c.claims_score}, Portal ${c.portal_score}
+App Store★: ${c.app_store_rating > 0 ? c.app_store_rating : "not available"}
+Current key differentiator: ${c.key_differentiator || "none"}
+Current strengths: ${(c.strengths||[]).join("; ")}
+Current weaknesses: ${(c.weaknesses||[]).join("; ")}
+Current our_advantage: ${c.our_advantage || "none"}
+Current our_gap: ${c.our_gap || "none"}
+
+Return ONLY this JSON structure (no other text):
+{
+  "key_differentiator": "updated 1-sentence differentiator for ${c.name}",
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "weaknesses": ["weakness 1", "weakness 2", "weakness 3"],
+  "our_advantage": "what ${orgName} has that ${c.name} cannot easily replicate — specific, evidence-grounded",
+  "our_gap": "where ${c.name} is ahead of ${orgName} right now — specific capability or metric, no invented numbers for ${orgName}",
+  "intelligence_summary": "2-sentence executive update on ${c.name}'s current competitive trajectory and the single most important thing ${orgName} product team should know about them right now"
+}
+
+Rules: every claim must be grounded in publicly known product facts or the scores above. No invented metrics for ${orgName}. Return only the JSON object.`;
+      break;
+    }
+
     case "measure_insights": {
       const ini = payload.ini || {};
       const metrics = payload.metrics || [];

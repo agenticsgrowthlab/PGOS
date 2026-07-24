@@ -16,22 +16,31 @@ const TABS = [
 
 
 // ─── Competitor Analysis Component ───────────────────────────
-
-function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeCompetitor }) {
+function CompetitorAnalysis({ competitors, foundation, addCompetitor, updateComp, removeCompetitor }) {
   const { orgId } = useApp();
   const [collapsed, setCollapsed] = useState(() => {
     const s = {};
     competitors.forEach((c, i) => { s[c.id] = i > 0; });
     return s;
   });
-  const [aiLoading, setAiLoading] = useState(false);
-  const [snapshots, setSnapshots] = useState([]); // persisted from Neon
+
+  // Per-competitor refresh state
+  const [refreshing, setRefreshing]   = useState({}); // { [id]: true }
+  const [refreshed, setRefreshed]     = useState({}); // { [id]: ISO timestamp }
+
+  // Bulk narrative (strategic summary)
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkText, setBulkText]       = useState("");
+  const [bulkOpen, setBulkOpen]       = useState(false);
+
+  // Persistent snapshots
+  const [snapshots, setSnapshots]     = useState([]);
   const [snapsLoading, setSnapsLoading] = useState(true);
-  const [activeSnap, setActiveSnap] = useState(null); // null = live
+  const [activeSnap, setActiveSnap]   = useState(null); // null = live
 
   const toggleCollapse = (id) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
 
-  // Load persisted snapshots on mount
+  // Load snapshots on mount
   useEffect(() => {
     if (!orgId) return;
     listCompetitorSnapshots(orgId)
@@ -40,51 +49,91 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
       .finally(() => setSnapsLoading(false));
   }, [orgId]);
 
-  const runAiRefresh = async () => {
-    setAiLoading(true);
+  // Build our own product scores for context
+  const ourScores = (() => {
+    const p = (foundation?.products || [])[0];
+    if (!p) return null;
+    return {
+      overall_score: p.overall_score || null,
+      digital_score: p.digital_score || null,
+      mobile_score:  p.mobile_score  || null,
+      claims_score:  p.claims_score  || null,
+      app_store_rating: p.app_store_rating || null,
+    };
+  })();
+
+  // ── Per-competitor refresh ─────────────────────────────────
+  const refreshOne = async (c) => {
+    setRefreshing(prev => ({ ...prev, [c.id]: true }));
     try {
-      // Pull our own product scores from foundation if available
-      const ourProduct = (foundation?.products || []).find(p => p.is_primary || p.type === "mobile_app") || (foundation?.products || [])[0];
-      const ourScores = ourProduct ? {
-        overall_score:   ourProduct.overall_score   || null,
-        digital_score:   ourProduct.digital_score   || null,
-        mobile_score:    ourProduct.mobile_score    || null,
-        claims_score:    ourProduct.claims_score    || null,
-        portal_score:    ourProduct.portal_score    || null,
-        app_store_rating: ourProduct.app_store_rating || null,
-      } : null;
-      const text = await callAI("competitor_analysis", { foundation, competitors, ourScores });
-      if (text) {
-        // Build scan_data: capture current scores for delta comparison
-        const scan_data = {};
-        competitors.forEach(c => {
-          scan_data[c.id] = {
-            name: c.name,
-            overall_score: c.overall_score,
-            digital_score: c.digital_score,
-            mobile_score: c.mobile_score,
-            claims_score: c.claims_score,
-            portal_score: c.portal_score,
-            app_store_rating: c.app_store_rating,
-            threat_level: c.threat_level,
-          };
-        });
-        // Persist to Neon
-        const saved = await createCompetitorSnapshot({ org_id: orgId, summary: text, scan_data });
-        if (saved?.data) {
-          setSnapshots(prev => [saved.data, ...prev]);
-          setActiveSnap(0);
-        }
-      }
+      const res = await callAI("competitor_refresh", { foundation, competitor: c, ourScores });
+      const text = res?.data || "";
+      // Parse JSON response
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      const parsed  = JSON.parse(cleaned);
+      // Write back to Neon via updateComp
+      updateComp(c.id, {
+        key_differentiator: parsed.key_differentiator,
+        strengths:          parsed.strengths,
+        weaknesses:         parsed.weaknesses,
+        our_advantage:      parsed.our_advantage,
+        our_gap:            parsed.our_gap,
+      });
+      // Store summary for display in card
+      setRefreshed(prev => ({
+        ...prev,
+        [c.id]: { ts: new Date().toISOString(), summary: parsed.intelligence_summary }
+      }));
+      // Auto-open this card
+      setCollapsed(prev => ({ ...prev, [c.id]: false }));
     } catch (err) {
-      console.error("AI competitor refresh error:", err);
+      console.error("Per-competitor refresh error:", err);
     } finally {
-      setAiLoading(false);
+      setRefreshing(prev => ({ ...prev, [c.id]: false }));
     }
   };
 
-  // Build delta between two snapshots (or live vs last snap)
-  const getDelta = (competitorId, field) => {
+  // ── Refresh ALL in sequence ────────────────────────────────
+  const refreshAll = async () => {
+    setBulkLoading(true);
+    setBulkText("");
+    try {
+      // 1. Run per-competitor refresh for all cards
+      for (const c of competitors) {
+        await refreshOne(c);
+      }
+      // 2. Save snapshot with current scores
+      const scan_data = {};
+      competitors.forEach(c => {
+        scan_data[c.id] = {
+          name: c.name,
+          overall_score: c.overall_score,
+          digital_score: c.digital_score,
+          mobile_score:  c.mobile_score,
+          claims_score:  c.claims_score,
+          portal_score:  c.portal_score,
+          app_store_rating: c.app_store_rating,
+          threat_level:  c.threat_level,
+        };
+      });
+      // 3. Run strategic summary
+      const summaryRes = await callAI("competitor_analysis", { foundation, competitors, ourScores });
+      const summaryText = summaryRes?.data || "";
+      setBulkText(summaryText);
+      setBulkOpen(true);
+
+      // 4. Persist snapshot
+      const saved = await createCompetitorSnapshot({ org_id: orgId, summary: summaryText, scan_data });
+      if (saved?.data) setSnapshots(prev => [saved.data, ...prev]);
+    } catch (err) {
+      console.error("Refresh all error:", err);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  // ── Delta helpers ──────────────────────────────────────────
+  const getSnapDelta = (competitorId, field) => {
     if (snapshots.length < 2) return null;
     const curr = snapshots[0]?.scan_data?.[competitorId]?.[field];
     const prev = snapshots[1]?.scan_data?.[competitorId]?.[field];
@@ -93,94 +142,72 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
     return diff === 0 ? null : diff;
   };
 
-  const DeltaBadge = ({ delta }) => {
-    if (delta === null) return null;
-    const color = delta > 0 ? T.red : T.green; // higher score = worse for us
+  const scoreColor = (s) => s >= 85 ? T.red : s >= 70 ? T.amber : T.green;
+
+  const ScoreDelta = ({ delta }) => {
+    if (!delta) return null;
+    const up = delta > 0;
     return (
-      <span style={{ fontSize: 9, fontWeight: 700, color, marginLeft: 4 }}>
-        {delta > 0 ? `▲${delta}` : `▼${Math.abs(delta)}`}
-      </span>
+      <div style={{ fontSize: 9, fontWeight: 800, color: up ? T.red : T.green, lineHeight: 1 }}>
+        {up ? `▲${delta}` : `▼${Math.abs(delta)}`}
+      </div>
     );
   };
 
-  const scoreColor = (s) => s >= 85 ? T.red : s >= 70 ? T.amber : T.green;
-
   return (
     <div>
-      {/* Header row */}
+      {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
         <div>
           <div style={css.secHead}>Competitive Analysis</div>
           <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
-            Internal scoring model — PM-assessed across digital experience, claims, and portal positioning.
-            {" "}<span style={{ color: T.gold }}>Scores are not sourced from app stores.</span>
-            {" "}App Store rating is the only external data point (from public iOS/Android listings).
+            PM-assessed scores (0–100). App Store★ is the only externally sourced data point (public iOS/Android listing).
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button style={css.btnOut} onClick={runAiRefresh} disabled={aiLoading}>
-            {aiLoading ? "◆ Analyzing…" : "◆ AI Refresh"}
+          <button style={css.btnOut} onClick={refreshAll} disabled={bulkLoading}>
+            {bulkLoading ? "◆ Refreshing all…" : "◆ Refresh All"}
           </button>
           <button style={css.btnGhost} onClick={addCompetitor}>+ Add</button>
         </div>
       </div>
 
-      {/* Snapshot history pills */}
+      {/* ── Scan history pills ── */}
       {!snapsLoading && (
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em" }}>Scan History:</span>
-          <button
-            onClick={() => setActiveSnap(null)}
+          <button onClick={() => setActiveSnap(null)}
             style={{ fontSize: 11, padding: "4px 12px", borderRadius: 20, border: `1px solid ${activeSnap === null ? T.gold : T.border}`, background: activeSnap === null ? T.goldD : "transparent", color: activeSnap === null ? T.gold : T.muted, cursor: "pointer" }}>
             Live Data
           </button>
           {snapshots.map((s, i) => (
-            <button key={s.id || i}
-              onClick={() => setActiveSnap(i)}
+            <button key={s.id || i} onClick={() => setActiveSnap(i)}
               style={{ fontSize: 11, padding: "4px 12px", borderRadius: 20, border: `1px solid ${activeSnap === i ? T.steel : T.border}`, background: activeSnap === i ? T.iceD : "transparent", color: activeSnap === i ? T.ice : T.muted, cursor: "pointer" }}>
               {new Date(s.created_at).toLocaleDateString([], { month: "short", day: "numeric" })} · {new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </button>
           ))}
-          {snapshots.length === 0 && <span style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>No scans yet — click AI Refresh to run first scan</span>}
+          {snapshots.length === 0 && <span style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>No scans yet — click Refresh All to run first scan</span>}
         </div>
       )}
 
-      {/* AI snapshot narrative */}
-      {activeSnap !== null && snapshots[activeSnap] && (
-        <div style={{ ...css.card, borderLeft: `3px solid ${T.steel}`, marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: T.ice, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              ◆ AI Intelligence Scan · {new Date(snapshots[activeSnap].created_at).toLocaleString()}
-            </div>
-            {activeSnap === 0 && snapshots.length >= 2 && (
-              <div style={{ fontSize: 10, color: T.amber, fontStyle: "italic" }}>Latest scan — see delta badges on scores below ▲▼</div>
-            )}
-          </div>
-          <div style={{ fontSize: 12, color: T.body, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{snapshots[activeSnap].summary}</div>
-        </div>
-      )}
-
-      {/* What changed section — only when on latest snap and 2+ scans exist */}
-      {activeSnap === 0 && snapshots.length >= 2 && (
+      {/* ── What changed since last scan ── */}
+      {snapshots.length >= 2 && activeSnap === null && (
         <div style={{ ...css.card, borderLeft: `3px solid ${T.amber}`, marginBottom: 16 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: T.amber, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-            △ What Changed Since Previous Scan · {new Date(snapshots[1].created_at).toLocaleDateString()}
+            △ Score Changes Since {new Date(snapshots[1].created_at).toLocaleDateString([], { month: "short", day: "numeric" })} Scan
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8 }}>
             {competitors.map(c => {
-              const fields = ["overall_score","digital_score","mobile_score","claims_score","portal_score"];
-              const labels = ["Overall","Digital","Mobile","Claims","Portal"];
-              const changes = fields.map((f, i) => ({ label: labels[i], delta: getDelta(c.id, f) })).filter(x => x.delta !== null);
+              const fields = [["overall_score","Overall"],["digital_score","Digital"],["mobile_score","Mobile"],["claims_score","Claims"],["portal_score","Portal"]];
+              const changes = fields.map(([f, l]) => ({ label: l, delta: getSnapDelta(c.id, f) })).filter(x => x.delta !== null);
               if (!changes.length) return null;
               return (
                 <div key={c.id} style={{ background: T.ink3, borderRadius: 8, padding: "8px 12px" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: T.loud, marginBottom: 5 }}>{c.name}</div>
                   {changes.map(({ label, delta }) => (
-                    <div key={label} style={{ fontSize: 11, color: T.muted, display: "flex", justifyContent: "space-between" }}>
+                    <div key={label} style={{ fontSize: 11, color: T.muted, display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                       <span>{label}</span>
-                      <span style={{ fontWeight: 700, color: delta > 0 ? T.red : T.green }}>
-                        {delta > 0 ? `▲ +${delta}` : `▼ ${delta}`}
-                      </span>
+                      <span style={{ fontWeight: 700, color: delta > 0 ? T.red : T.green }}>{delta > 0 ? `▲ +${delta}` : `▼ ${delta}`}</span>
                     </div>
                   ))}
                 </div>
@@ -188,35 +215,55 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
             }).filter(Boolean)}
             {competitors.every(c => {
               const fields = ["overall_score","digital_score","mobile_score","claims_score","portal_score"];
-              return fields.every(f => getDelta(c.id, f) === null);
-            }) && (
-              <div style={{ fontSize: 12, color: T.muted, fontStyle: "italic" }}>No score changes detected between scans.</div>
-            )}
+              return fields.every(f => getSnapDelta(c.id, f) === null);
+            }) && <span style={{ fontSize: 12, color: T.muted, fontStyle: "italic" }}>No score changes between scans.</span>}
           </div>
         </div>
       )}
 
-      {/* Scorecard header */}
+      {/* ── Strategic Summary (collapsible) ── */}
+      {(bulkText || (activeSnap !== null && snapshots[activeSnap]?.summary)) && (
+        <div style={{ ...css.card, borderLeft: `3px solid ${T.steel}`, marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setBulkOpen(o => !o)}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: T.ice, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              ◆ Strategic Summary {activeSnap !== null ? `· ${new Date(snapshots[activeSnap].created_at).toLocaleDateString()}` : "· Latest Scan"}
+            </div>
+            <span style={{ color: T.muted, fontSize: 13 }}>{bulkOpen ? "▾" : "▸"}</span>
+          </div>
+          {bulkOpen && (
+            <div style={{ fontSize: 12, color: T.body, lineHeight: 1.7, whiteSpace: "pre-wrap", marginTop: 12 }}>
+              {activeSnap !== null ? snapshots[activeSnap].summary : bulkText}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Scorecard header ── */}
       {competitors.length > 0 && (
         <div style={{ ...css.card, background: T.ink3, marginBottom: 0, padding: "8px 16px", borderRadius: "10px 10px 0 0" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "32px 1.6fr 70px 70px 70px 70px 70px 90px 80px 24px", gap: 6, alignItems: "center" }}>
-            {["#", "Competitor", "Overall", "Digital", "Mobile", "Claims", "Portal", "App Store ★", "Threat", ""].map(h => (
+          <div style={{ display: "grid", gridTemplateColumns: "32px 1.6fr 80px 80px 80px 80px 80px 90px 80px 100px 24px", gap: 6, alignItems: "center" }}>
+            {["#","Competitor","Overall","Digital","Mobile","Claims","Portal","App Store★","Threat","Refresh",""].map(h => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{h}</div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Competitor rows */}
+      {/* ── Competitor rows ── */}
       {competitors.map((c, idx) => {
         const threatColor = c.threat_level === "high" ? T.red : c.threat_level === "medium" ? T.amber : T.green;
-        const tierColor = c.tier === "disruptor" ? T.purple : c.tier === "primary" ? T.steel : T.muted;
+        const tierColor   = c.tier === "disruptor" ? T.purple : c.tier === "primary" ? T.steel : T.muted;
         const isCollapsed = collapsed[c.id] !== false && idx > 0 ? true : !!collapsed[c.id];
-        const isLast = idx === competitors.length - 1;
+        const isLast      = idx === competitors.length - 1;
+        const isRefreshing = !!refreshing[c.id];
+        const lastRefresh  = refreshed[c.id];
 
         return (
-          <div key={c.id} style={{ ...css.card, marginBottom: isLast ? 0 : 4, borderRadius: isLast && isCollapsed ? "0 0 10px 10px" : "0", borderTop: "none", padding: "10px 16px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "32px 1.6fr 70px 70px 70px 70px 70px 90px 80px 24px", gap: 6, alignItems: "center" }}>
+          <div key={c.id} style={{ ...css.card, marginBottom: isLast ? 0 : 4, borderRadius: isLast && isCollapsed ? "0 0 10px 10px" : "0", borderTop: "none", padding: "10px 16px",
+            borderLeft: lastRefresh ? `3px solid ${T.gold}` : undefined }}>
+
+            {/* Summary row */}
+            <div style={{ display: "grid", gridTemplateColumns: "32px 1.6fr 80px 80px 80px 80px 80px 90px 80px 100px 24px", gap: 6, alignItems: "center" }}>
               <div style={{ fontSize: 12, fontWeight: 900, color: T.gold }}>#{idx + 1}</div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>{c.name}</div>
@@ -226,38 +273,58 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
                   {c.jd_power_rank > 0 && <span style={{ fontSize: 10, color: T.muted }}>JD Power #{c.jd_power_rank}</span>}
                 </div>
               </div>
-              {/* Scores with delta badges from most recent vs previous scan */}
+
+              {/* Scores with delta badges */}
               {[
                 [c.overall_score, "overall_score"],
                 [c.digital_score, "digital_score"],
-                [c.mobile_score, "mobile_score"],
-                [c.claims_score, "claims_score"],
-                [c.portal_score, "portal_score"],
+                [c.mobile_score,  "mobile_score"],
+                [c.claims_score,  "claims_score"],
+                [c.portal_score,  "portal_score"],
               ].map(([s, field], i) => {
-                const delta = activeSnap === 0 ? getDelta(c.id, field) : null;
+                const delta = activeSnap === null && snapshots.length >= 2 ? getSnapDelta(c.id, field) : null;
                 return (
                   <div key={i} style={{ textAlign: "center" }}>
-                    <span style={{ fontSize: 17, fontWeight: 800, color: s > 0 ? scoreColor(s) : T.muted }}>{s || "—"}</span>
-                    {delta !== null && (
-                      <span style={{ fontSize: 9, fontWeight: 700, color: delta > 0 ? T.red : T.green, display: "block" }}>
-                        {delta > 0 ? `▲${delta}` : `▼${Math.abs(delta)}`}
-                      </span>
-                    )}
+                    <div style={{ fontSize: 17, fontWeight: 800, color: s > 0 ? scoreColor(s) : T.muted }}>{s || "—"}</div>
+                    <ScoreDelta delta={delta} />
                   </div>
                 );
               })}
+
+              {/* App Store */}
               <div style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: c.app_store_rating > 0 ? T.gold : T.muted }}>
                 {c.app_store_rating > 0 ? `★ ${Number(c.app_store_rating).toFixed(1)}` : "—"}
               </div>
+
+              {/* Threat */}
               <div style={{ textAlign: "center" }}>
                 <Tag label={c.threat_level || "—"} color={threatColor} />
               </div>
+
+              {/* Per-card refresh button */}
+              <button
+                onClick={(e) => { e.stopPropagation(); refreshOne(c); }}
+                disabled={isRefreshing}
+                style={{ fontSize: 10, fontWeight: 700, color: isRefreshing ? T.muted : T.gold, background: "transparent", border: `1px solid ${isRefreshing ? T.border : T.gold}40`, borderRadius: 4, padding: "3px 8px", cursor: isRefreshing ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                {isRefreshing ? "…" : "◆ Refresh"}
+              </button>
+
+              {/* Collapse toggle */}
               <button onClick={() => toggleCollapse(c.id)}
                 style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 14, padding: 0, textAlign: "center" }}>
                 {isCollapsed ? "▸" : "▾"}
               </button>
             </div>
 
+            {/* Last refresh timestamp + intelligence summary */}
+            {lastRefresh && (
+              <div style={{ marginTop: 6, fontSize: 10, color: T.gold, fontStyle: "italic", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>◆ Refreshed {new Date(lastRefresh.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                {lastRefresh.summary && <span style={{ color: T.muted }}>· {lastRefresh.summary}</span>}
+              </div>
+            )}
+
+            {/* Expanded detail */}
             {!isCollapsed && (
               <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
@@ -305,22 +372,17 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
         </div>
       )}
 
-      {/* Legend + data source note */}
+      {/* Legend */}
       <div style={{ ...css.card, marginTop: 8, borderRadius: "0 0 10px 10px", borderTop: "none" }}>
-        <div style={{ fontSize: 11, color: T.muted, display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 6 }}>
-          <span>Scores · <strong style={{ color: T.red }}>85+</strong> threat · <strong style={{ color: T.amber }}>70–84</strong> moderate · <strong style={{ color: T.green }}>&lt;70</strong> gap opportunity</span>
+        <div style={{ fontSize: 11, color: T.muted, display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 4 }}>
+          <span>Scores · <strong style={{ color: T.red }}>85+</strong> high threat · <strong style={{ color: T.amber }}>70–84</strong> moderate · <strong style={{ color: T.green }}>&lt;70</strong> gap opportunity</span>
           <span><strong style={{ color: T.steel }}>primary</strong> direct · <strong style={{ color: T.purple }}>disruptor</strong> digital-native · <strong style={{ color: T.muted }}>secondary</strong> adjacent</span>
         </div>
         <div style={{ fontSize: 10, color: T.muted, fontStyle: "italic" }}>
-          ★ App Store rating is sourced from public iOS/Android listings. All other scores (Overall, Digital, Mobile, Claims, Portal) are PM-assessed using the PGI Competitive Scoring Model — see References → Score Methodology for exact formulas.
+          ★ App Store rating sourced from public iOS/Android listings. All other scores are PM-assessed. Delta badges (▲▼) show change vs previous scan.
+          {" "}See References → Score Methodology for exact formulas.
         </div>
       </div>
-
-      {aiLoading && (
-        <div style={{ ...css.card, marginTop: 8 }}>
-          <div style={{ color: T.gold, fontStyle: "italic" }}>◆ AI is analyzing your competitive landscape… scanning digital presence, claims experience, and mobile capabilities…</div>
-        </div>
-      )}
     </div>
   );
 }
@@ -567,6 +629,7 @@ export function Foundation() {
           competitors={competitors}
           foundation={f}
           addCompetitor={addCompetitor}
+          updateComp={updateComp}
           removeCompetitor={removeCompetitor}
         />
       )}
