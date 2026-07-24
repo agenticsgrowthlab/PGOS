@@ -310,7 +310,10 @@ async function handleInitiatives(sql, action, payload) {
           epics            = COALESCE(${p.epics}, epics),
           risk_register    = COALESCE(${p.risk_register}, risk_register),
           pi_planning      = COALESCE(${p.pi_planning}, pi_planning),
-          handoff_package  = COALESCE(${p.handoff_package}, handoff_package)
+          handoff_package  = COALESCE(${p.handoff_package}, handoff_package),
+          roadmap_start    = COALESCE(${p.roadmap_start || null}, roadmap_start),
+          roadmap_end      = COALESCE(${p.roadmap_end || null}, roadmap_end),
+          bar_color        = COALESCE(${p.bar_color || null}, bar_color)
         WHERE id = ${p.id}
         RETURNING *
       `;

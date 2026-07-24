@@ -115,6 +115,10 @@ export function normalizeInitiative(row) {
     riskReg: row.risk_register || "",
     piPlanning: row.pi_planning || "",
     handoffPackage: row.handoff_package || "",
+    // Roadmap / timeline fields
+    roadmap_start: row.roadmap_start || null,
+    roadmap_end:   row.roadmap_end   || null,
+    bar_color:     row.bar_color     || null,
     // Linkage names (from JOIN)
     okrName: row.okr_name || "",
     themeName: row.theme_name || "",

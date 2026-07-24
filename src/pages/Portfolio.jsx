@@ -97,63 +97,267 @@ export function Portfolio() {
   );
 }
 
-// ─── PI Planning ──────────────────────────────────────────────
+// ─── PI Planning — Interactive Gantt Timeline ─────────────────
+const BAR_COLORS = [
+  "#D4A843","#2E6DA4","#2ECC71","#9B59B6","#1ABC9C",
+  "#E8913A","#E74C3C","#7FB3D3","#F39C12","#27AE60",
+];
+
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function getDefaultDates(ini) {
+  // Assign default start/end based on stage if not set
+  const year = new Date().getFullYear();
+  const stageDefaults = {
+    idea:       [new Date(year,6,1),  new Date(year,8,30)],
+    discovery:  [new Date(year,6,1),  new Date(year,8,30)],
+    review:     [new Date(year,3,1),  new Date(year,5,30)],
+    approved:   [new Date(year,3,1),  new Date(year,5,30)],
+    definition: [new Date(year,3,1),  new Date(year,5,30)],
+    delivery:   [new Date(year,0,1),  new Date(year,2,31)],
+    handoff:    [new Date(year,0,1),  new Date(year,2,31)],
+  };
+  const [s, e] = stageDefaults[ini.stage] || [new Date(year,0,1), new Date(year,11,31)];
+  return {
+    start: ini.roadmap_start ? new Date(ini.roadmap_start) : s,
+    end:   ini.roadmap_end   ? new Date(ini.roadmap_end)   : e,
+  };
+}
+
+function toDateStr(d) {
+  return d.toISOString().split("T")[0];
+}
+
+function GanttTimeline({ initiatives, updateIni }) {
+  const timelineRef = useRef(null);
+  const dragging = useRef(null); // { id, type: "move"|"left"|"right", startX, origStart, origEnd }
+
+  const year = new Date().getFullYear();
+  const timelineStart = new Date(year, 0, 1);
+  const timelineEnd   = new Date(year, 11, 31);
+  const totalDays = (timelineEnd - timelineStart) / 86400000;
+
+  const dayToPercent = (d) => ((d - timelineStart) / 86400000) / totalDays * 100;
+
+  const onMouseDown = (e, id, type) => {
+    e.preventDefault();
+    const ini = initiatives.find(i => i.id === id);
+    const { start, end } = getDefaultDates(ini);
+    dragging.current = { id, type, startX: e.clientX, origStart: start, origEnd: end };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  const onMouseMove = (e) => {
+    if (!dragging.current || !timelineRef.current) return;
+    const { id, type, startX, origStart, origEnd } = dragging.current;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const pxPerDay = rect.width / totalDays;
+    const deltaDays = Math.round((e.clientX - startX) / pxPerDay);
+
+    let newStart = new Date(origStart);
+    let newEnd   = new Date(origEnd);
+
+    if (type === "move") {
+      newStart = new Date(origStart.getTime() + deltaDays * 86400000);
+      newEnd   = new Date(origEnd.getTime()   + deltaDays * 86400000);
+    } else if (type === "left") {
+      newStart = new Date(origStart.getTime() + deltaDays * 86400000);
+      if (newStart >= newEnd) newStart = new Date(newEnd.getTime() - 86400000 * 7);
+    } else if (type === "right") {
+      newEnd = new Date(origEnd.getTime() + deltaDays * 86400000);
+      if (newEnd <= newStart) newEnd = new Date(newStart.getTime() + 86400000 * 7);
+    }
+
+    // Clamp to year
+    if (newStart < timelineStart) { const d = timelineStart - newStart; newStart = new Date(timelineStart); if (type==="move") newEnd = new Date(newEnd.getTime()+d); }
+    if (newEnd > timelineEnd)     { const d = newEnd - timelineEnd;     newEnd = new Date(timelineEnd);     if (type==="move") newStart = new Date(newStart.getTime()-d); }
+
+    updateIni(id, d => ({ ...d, roadmap_start: toDateStr(newStart), roadmap_end: toDateStr(newEnd) }));
+  };
+
+  const onMouseUp = () => {
+    dragging.current = null;
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
+
+  useEffect(() => () => {
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  }, []);
+
+  return (
+    <div style={css.card}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+        <div style={css.secHead}>Program Roadmap — {year}</div>
+        <div style={{ fontSize:11, color:T.muted }}>Drag bars to move · Drag edges to resize</div>
+      </div>
+
+      {/* Month headers */}
+      <div ref={timelineRef} style={{ position:"relative", marginBottom:8 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(12,1fr)", marginBottom:6 }}>
+          {MONTHS.map(m => (
+            <div key={m} style={{ fontSize:10, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:"0.08em", textAlign:"center", borderRight:`1px solid ${T.border}`, paddingBottom:4 }}>{m}</div>
+          ))}
+        </div>
+
+        {/* Quarter shading */}
+        <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, display:"grid", gridTemplateColumns:"repeat(4,1fr)", pointerEvents:"none", zIndex:0 }}>
+          {["Q1","Q2","Q3","Q4"].map((q,i) => (
+            <div key={q} style={{ background: i%2===0 ? "rgba(255,255,255,0.02)" : "transparent", borderRight:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:9, color:T.border, fontWeight:700, padding:"2px 6px" }}>{q}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Initiative bars */}
+        <div style={{ position:"relative", zIndex:1 }}>
+          {initiatives.map((ini, idx) => {
+            const { start, end } = getDefaultDates(ini);
+            const left  = dayToPercent(start);
+            const width = dayToPercent(end) - left;
+            const color = ini.bar_color || BAR_COLORS[idx % BAR_COLORS.length];
+
+            return (
+              <div key={ini.id} style={{ position:"relative", height:36, marginBottom:6 }}>
+                {/* Label left */}
+                <div style={{ position:"absolute", right:`${100 - left + 0.5}%`, top:"50%", transform:"translateY(-50%)", fontSize:10, color:T.muted, whiteSpace:"nowrap", textAlign:"right", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis" }}>
+                  {ini.slug}
+                </div>
+                {/* Bar */}
+                <div
+                  onMouseDown={e => onMouseDown(e, ini.id, "move")}
+                  style={{ position:"absolute", left:`${left}%`, width:`${width}%`, top:4, height:28, background:color, borderRadius:6, cursor:"grab", display:"flex", alignItems:"center", justifyContent:"center", userSelect:"none", boxShadow:`0 2px 8px ${color}55`, minWidth:8 }}>
+                  {/* Left resize handle */}
+                  <div onMouseDown={e => { e.stopPropagation(); onMouseDown(e, ini.id, "left"); }}
+                    style={{ position:"absolute", left:0, top:0, bottom:0, width:8, cursor:"ew-resize", background:"rgba(0,0,0,0.25)", borderRadius:"6px 0 0 6px" }}/>
+                  {/* Title */}
+                  <span style={{ fontSize:10, fontWeight:700, color:"#fff", padding:"0 12px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%", pointerEvents:"none" }}>
+                    {width > 8 ? ini.title.substring(0,24) + (ini.title.length>24?"…":"") : ""}
+                  </span>
+                  {/* Right resize handle */}
+                  <div onMouseDown={e => { e.stopPropagation(); onMouseDown(e, ini.id, "right"); }}
+                    style={{ position:"absolute", right:0, top:0, bottom:0, width:8, cursor:"ew-resize", background:"rgba(0,0,0,0.25)", borderRadius:"0 6px 6px 0" }}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Date editors + color pickers */}
+      <div style={{ marginTop:16 }}>
+        <div style={{ fontSize:10, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Initiative Details</div>
+        {initiatives.map((ini, idx) => {
+          const { start, end } = getDefaultDates(ini);
+          const color = ini.bar_color || BAR_COLORS[idx % BAR_COLORS.length];
+          return (
+            <div key={ini.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"7px 0", borderBottom:`1px solid ${T.border}` }}>
+              {/* Color picker */}
+              <input type="color" value={color}
+                onChange={e => updateIni(ini.id, d => ({ ...d, bar_color: e.target.value }))}
+                style={{ width:24, height:24, border:"none", borderRadius:4, cursor:"pointer", background:"none", padding:0 }} title="Change bar color"/>
+              {/* Name */}
+              <div style={{ fontSize:12, color:T.loud, fontWeight:600, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ini.title}</div>
+              <Tag label={stageLabel(ini.stage)} color={stageColor(ini.stage)} />
+              {/* Date inputs */}
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:10, color:T.muted }}>Start</span>
+                <input type="date" value={toDateStr(start)}
+                  onChange={e => updateIni(ini.id, d => ({ ...d, roadmap_start: e.target.value }))}
+                  style={{ ...css.input, width:130, fontSize:11, padding:"4px 8px" }} />
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:10, color:T.muted }}>End</span>
+                <input type="date" value={toDateStr(end)}
+                  onChange={e => updateIni(ini.id, d => ({ ...d, roadmap_end: e.target.value }))}
+                  style={{ ...css.input, width:130, fontSize:11, padding:"4px 8px" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function PIPlanning() {
   const { initiatives, foundation, updateIni } = useApp();
   const [loading, setLoading] = useState(false);
-  const [piOutput, setPiOutput] = useState("");
+  const [piCards, setPiCards] = useState(null); // structured sections
   const approved = initiatives.filter(i => i.approved);
-  const quarters = ["Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025"];
-  const stageQ = { idea: "Q3 2025", discovery: "Q3 2025", review: "Q2 2025", approved: "Q2 2025", definition: "Q2 2025", delivery: "Q1 2025", handoff: "Q1 2025" };
 
   const genPI = async () => {
     setLoading(true);
     const text = await callAI("pi_planning", { foundation, initiatives }).catch(() => "");
-    // save to approved initiatives
     if (text) {
+      // Parse into sections — split on numbered headers
+      const sections = [
+        { key:"objectives",   title:"PI Objectives",            icon:"◎", color:T.gold   },
+        { key:"risks",        title:"Risks",                    icon:"⚠", color:T.red    },
+        { key:"roam",         title:"ROAM Status",              icon:"◈", color:T.amber  },
+        { key:"dependencies", title:"Cross-team Dependencies",  icon:"⊕", color:T.steel  },
+        { key:"capacity",     title:"Capacity & Load",          icon:"△", color:T.teal   },
+        { key:"confidence",   title:"Confidence Vote",          icon:"✓", color:T.green  },
+      ];
+      // Split the AI text by numbered section headers (1), 2), etc.)
+      const parts = text.split(/\n(?=\d+\)|\d+\.)/);
+      const cards = sections.map((sec, i) => ({
+        ...sec,
+        content: parts[i] || "",
+      }));
+      setPiCards(cards);
+      // Save to approved initiatives
       approved.forEach(ini => updateIni(ini.id, d => ({ ...d, piPlanning: text })));
     }
-    setPiOutput(text);
     setLoading(false);
   };
 
   return (
     <div>
       <div style={css.h2}>PI Planning</div>
-      <div style={css.sub}>SAFe Program Increment planning — objectives, risks, dependencies, and timeline.</div>
+      <div style={css.sub}>Program Increment planning — interactive roadmap, objectives, risks, and dependencies.</div>
 
-      {/* Roadmap timeline */}
-      <div style={css.card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={css.secHead}>Roadmap Timeline — 2025</div>
-          <Tag label={`${approved.length} Approved Initiatives`} color={T.green} bg={T.grnD} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 12 }}>
-          {quarters.map(q => (
-            <div key={q} style={{ background: T.ink3, borderRadius: 8, padding: "10px 14px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.gold, marginBottom: 10 }}>{q}</div>
-              {initiatives.filter(i => stageQ[i.stage] === q).map(ini => (
-                <div key={ini.id} style={{ background: T.ink4, border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 10px", marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, color: T.loud, fontWeight: 500 }}>{ini.title.substring(0, 28)}{ini.title.length > 28 ? "…" : ""}</div>
-                  <div style={{ fontSize: 10, color: stageColor(ini.stage), marginTop: 2 }}>{stageLabel(ini.stage)}</div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Interactive Gantt Timeline */}
+      <GanttTimeline initiatives={initiatives} updateIni={updateIni} />
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      {/* Generate PI Package */}
+      <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
         <button style={css.btnGold} onClick={genPI} disabled={loading || !approved.length}>
           {loading ? "Generating…" : "◆ Generate PI Planning Package"}
         </button>
+        {!approved.length && <span style={{ fontSize:12, color:T.muted }}>Approve at least one initiative first</span>}
       </div>
+
       {loading && <AIBox label="◆ SAFe RTE — Building PI Package" loading />}
-      {piOutput && (
-        <div style={css.card}>
-          <div style={{ fontWeight: 700, color: T.gold, marginBottom: 10 }}>PI Planning Package</div>
-          <textarea rows={28} style={{ ...css.ta, fontSize: 12, lineHeight: 1.75 }} value={piOutput}
-            onChange={e => setPiOutput(e.target.value)} />
+
+      {/* Structured PI Cards */}
+      {piCards && (
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:T.gold, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>PI Planning Package</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+            {piCards.map(card => (
+              <div key={card.key} style={{ ...css.card, borderLeft:`3px solid ${card.color}`, margin:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                  <span style={{ fontSize:16, color:card.color }}>{card.icon}</span>
+                  <div style={{ fontSize:12, fontWeight:700, color:card.color, textTransform:"uppercase", letterSpacing:"0.08em" }}>{card.title}</div>
+                </div>
+                <textarea rows={8} style={{ ...css.ta, fontSize:12, lineHeight:1.7 }}
+                  value={card.content}
+                  onChange={e => setPiCards(prev => prev.map(c => c.key===card.key ? {...c, content:e.target.value} : c))} />
+              </div>
+            ))}
+          </div>
+
+          {/* Summary actions */}
+          <div style={{ display:"flex", gap:8, marginTop:16 }}>
+            <button style={css.btnGhost} onClick={() => {
+              const full = piCards.map(c => `## ${c.title}\n\n${c.content}`).join("\n\n---\n\n");
+              navigator.clipboard.writeText(full);
+            }}>Copy All</button>
+            <button style={css.btnGhost} onClick={genPI}>↻ Regenerate</button>
+          </div>
         </div>
       )}
     </div>
