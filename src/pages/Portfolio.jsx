@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { T, css, calcPivot, pivotTier, calcWSJF, wsjfColor, stageLabel, stageColor } from "../lib/tokens";
 import { AIBox, Tag } from "../components/ui";
 import { useApp } from "../contexts/AppContext";
@@ -21,7 +21,6 @@ export function Portfolio() {
     updateIni(id, d => ({
       ...d,
       portfolioScore: { ...d.portfolioScore, [key]: parseInt(val) || 0 },
-      // also keep DB fields in sync
       ...(key === "bizValue" && { wsjf_biz_value: parseInt(val) || 0 }),
       ...(key === "timeCriticality" && { wsjf_time_crit: parseInt(val) || 0 }),
       ...(key === "riskReduction" && { wsjf_risk_reduction: parseInt(val) || 0 }),
@@ -106,7 +105,6 @@ const BAR_COLORS = [
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function getDefaultDates(ini) {
-  // Assign default start/end based on stage if not set
   const year = new Date().getFullYear();
   const stageDefaults = {
     idea:       [new Date(year,6,1),  new Date(year,8,30)],
@@ -130,7 +128,7 @@ function toDateStr(d) {
 
 function GanttTimeline({ initiatives, updateIni }) {
   const timelineRef = useRef(null);
-  const dragging = useRef(null); // { id, type: "move"|"left"|"right", startX, origStart, origEnd }
+  const dragging = useRef(null);
 
   const year = new Date().getFullYear();
   const timelineStart = new Date(year, 0, 1);
@@ -169,7 +167,6 @@ function GanttTimeline({ initiatives, updateIni }) {
       if (newEnd <= newStart) newEnd = new Date(newStart.getTime() + 86400000 * 7);
     }
 
-    // Clamp to year
     if (newStart < timelineStart) { const d = timelineStart - newStart; newStart = new Date(timelineStart); if (type==="move") newEnd = new Date(newEnd.getTime()+d); }
     if (newEnd > timelineEnd)     { const d = newEnd - timelineEnd;     newEnd = new Date(timelineEnd);     if (type==="move") newStart = new Date(newStart.getTime()-d); }
 
@@ -194,7 +191,6 @@ function GanttTimeline({ initiatives, updateIni }) {
         <div style={{ fontSize:11, color:T.muted }}>Drag bars to move · Drag edges to resize</div>
       </div>
 
-      {/* Month headers */}
       <div ref={timelineRef} style={{ position:"relative", marginBottom:8 }}>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(12,1fr)", marginBottom:6 }}>
           {MONTHS.map(m => (
@@ -202,7 +198,6 @@ function GanttTimeline({ initiatives, updateIni }) {
           ))}
         </div>
 
-        {/* Quarter shading */}
         <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, display:"grid", gridTemplateColumns:"repeat(4,1fr)", pointerEvents:"none", zIndex:0 }}>
           {["Q1","Q2","Q3","Q4"].map((q,i) => (
             <div key={q} style={{ background: i%2===0 ? "rgba(255,255,255,0.02)" : "transparent", borderRight:`1px solid ${T.border}` }}>
@@ -211,7 +206,6 @@ function GanttTimeline({ initiatives, updateIni }) {
           ))}
         </div>
 
-        {/* Initiative bars */}
         <div style={{ position:"relative", zIndex:1 }}>
           {initiatives.map((ini, idx) => {
             const { start, end } = getDefaultDates(ini);
@@ -221,22 +215,17 @@ function GanttTimeline({ initiatives, updateIni }) {
 
             return (
               <div key={ini.id} style={{ position:"relative", height:36, marginBottom:6 }}>
-                {/* Label left */}
                 <div style={{ position:"absolute", right:`${100 - left + 0.5}%`, top:"50%", transform:"translateY(-50%)", fontSize:10, color:T.muted, whiteSpace:"nowrap", textAlign:"right", maxWidth:160, overflow:"hidden", textOverflow:"ellipsis" }}>
                   {ini.slug}
                 </div>
-                {/* Bar */}
                 <div
                   onMouseDown={e => onMouseDown(e, ini.id, "move")}
                   style={{ position:"absolute", left:`${left}%`, width:`${width}%`, top:4, height:28, background:color, borderRadius:6, cursor:"grab", display:"flex", alignItems:"center", justifyContent:"center", userSelect:"none", boxShadow:`0 2px 8px ${color}55`, minWidth:8 }}>
-                  {/* Left resize handle */}
                   <div onMouseDown={e => { e.stopPropagation(); onMouseDown(e, ini.id, "left"); }}
                     style={{ position:"absolute", left:0, top:0, bottom:0, width:8, cursor:"ew-resize", background:"rgba(0,0,0,0.25)", borderRadius:"6px 0 0 6px" }}/>
-                  {/* Title */}
                   <span style={{ fontSize:10, fontWeight:700, color:"#fff", padding:"0 12px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%", pointerEvents:"none" }}>
                     {width > 8 ? ini.title.substring(0,24) + (ini.title.length>24?"…":"") : ""}
                   </span>
-                  {/* Right resize handle */}
                   <div onMouseDown={e => { e.stopPropagation(); onMouseDown(e, ini.id, "right"); }}
                     style={{ position:"absolute", right:0, top:0, bottom:0, width:8, cursor:"ew-resize", background:"rgba(0,0,0,0.25)", borderRadius:"0 6px 6px 0" }}/>
                 </div>
@@ -246,7 +235,6 @@ function GanttTimeline({ initiatives, updateIni }) {
         </div>
       </div>
 
-      {/* Date editors + color pickers */}
       <div style={{ marginTop:16 }}>
         <div style={{ fontSize:10, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Initiative Details</div>
         {initiatives.map((ini, idx) => {
@@ -254,14 +242,11 @@ function GanttTimeline({ initiatives, updateIni }) {
           const color = ini.bar_color || BAR_COLORS[idx % BAR_COLORS.length];
           return (
             <div key={ini.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"7px 0", borderBottom:`1px solid ${T.border}` }}>
-              {/* Color picker */}
               <input type="color" value={color}
                 onChange={e => updateIni(ini.id, d => ({ ...d, bar_color: e.target.value }))}
                 style={{ width:24, height:24, border:"none", borderRadius:4, cursor:"pointer", background:"none", padding:0 }} title="Change bar color"/>
-              {/* Name */}
               <div style={{ fontSize:12, color:T.loud, fontWeight:600, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ini.title}</div>
               <Tag label={stageLabel(ini.stage)} color={stageColor(ini.stage)} />
-              {/* Date inputs */}
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontSize:10, color:T.muted }}>Start</span>
                 <input type="date" value={toDateStr(start)}
@@ -282,17 +267,17 @@ function GanttTimeline({ initiatives, updateIni }) {
   );
 }
 
+// ─── PI Planning ──────────────────────────────────────────────
 export function PIPlanning() {
   const { initiatives, foundation, updateIni } = useApp();
   const [loading, setLoading] = useState(false);
-  const [piCards, setPiCards] = useState(null); // structured sections
+  const [piCards, setPiCards] = useState(null);
   const approved = initiatives.filter(i => i.approved);
 
   const genPI = async () => {
     setLoading(true);
     const text = await callAI("pi_planning", { foundation, initiatives }).catch(() => "");
     if (text) {
-      // Parse into sections — split on numbered headers
       const sections = [
         { key:"objectives",   title:"PI Objectives",            icon:"◎", color:T.gold   },
         { key:"risks",        title:"Risks",                    icon:"⚠", color:T.red    },
@@ -301,28 +286,29 @@ export function PIPlanning() {
         { key:"capacity",     title:"Capacity & Load",          icon:"△", color:T.teal   },
         { key:"confidence",   title:"Confidence Vote",          icon:"✓", color:T.green  },
       ];
-      // Split the AI text by numbered section headers (1), 2), etc.)
       const parts = text.split(/\n(?=\d+\)|\d+\.)/);
-      const cards = sections.map((sec, i) => ({
-        ...sec,
-        content: parts[i] || "",
-      }));
+      const cards = sections.map((sec, i) => ({ ...sec, content: parts[i] || "" }));
       setPiCards(cards);
-      // Save to approved initiatives
       approved.forEach(ini => updateIni(ini.id, d => ({ ...d, piPlanning: text })));
     }
     setLoading(false);
   };
+
+  // Called by Chatty to update a specific card
+  const updateCard = useCallback((cardKey, newContent) => {
+    setPiCards(prev => prev
+      ? prev.map(c => c.key === cardKey ? { ...c, content: newContent } : c)
+      : prev
+    );
+  }, []);
 
   return (
     <div>
       <div style={css.h2}>PI Planning</div>
       <div style={css.sub}>Program Increment planning — interactive roadmap, objectives, risks, and dependencies.</div>
 
-      {/* Interactive Gantt Timeline */}
       <GanttTimeline initiatives={initiatives} updateIni={updateIni} />
 
-      {/* Generate PI Package */}
       <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
         <button style={css.btnGold} onClick={genPI} disabled={loading || !approved.length}>
           {loading ? "Generating…" : "◆ Generate PI Planning Package"}
@@ -332,7 +318,6 @@ export function PIPlanning() {
 
       {loading && <AIBox label="◆ SAFe RTE — Building PI Package" loading />}
 
-      {/* Structured PI Cards */}
       {piCards && (
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:T.gold, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>PI Planning Package</div>
@@ -350,13 +335,23 @@ export function PIPlanning() {
             ))}
           </div>
 
-          {/* Summary actions */}
           <div style={{ display:"flex", gap:8, marginTop:16 }}>
             <button style={css.btnGhost} onClick={() => {
               const full = piCards.map(c => `## ${c.title}\n\n${c.content}`).join("\n\n---\n\n");
               navigator.clipboard.writeText(full);
             }}>Copy All</button>
             <button style={css.btnGhost} onClick={genPI}>↻ Regenerate</button>
+          </div>
+        </div>
+      )}
+
+      {/* PI Planning Chatty hint — shown when cards are live */}
+      {piCards && (
+        <div style={{ ...css.card, marginTop:12, background:"rgba(212,168,67,0.06)", border:`1px solid ${T.goldB}`, display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:18, color:T.gold }}>◆</span>
+          <div style={{ fontSize:12, color:T.muted }}>
+            <strong style={{ color:T.gold }}>Chatty knows you're on PI Planning.</strong>
+            {" "}Ask: <em>"Help me deepen the Risks card"</em> or <em>"Who are my cross-team dependencies?"</em> and Chatty will update the cards directly.
           </div>
         </div>
       )}
@@ -491,17 +486,75 @@ export function StageList({ stageFilter, title, setView }) {
   );
 }
 
+// ─── Context-aware suggestion bubbles per page ────────────────
+const PAGE_BUBBLES = {
+  dashboard: [
+    { label: "Summarize my pipeline", prompt: "Give me a quick summary of my full initiative pipeline — what's moving, what's stuck, and what needs attention this week." },
+    { label: "What should I prioritize?", prompt: "Based on my PIVOT scores and WSJF rankings, what are the top 2-3 initiatives I should focus on right now?" },
+    { label: "Any risks I should flag?", prompt: "Looking across all my initiatives, what risks or blockers should I be aware of?" },
+  ],
+  foundation: [
+    { label: "Review my OKRs", prompt: "Review my current OKRs. Are they well-structured, measurable, and appropriately ambitious?" },
+    { label: "Suggest a missing theme", prompt: "Looking at my strategic themes, are there any critical areas missing that I should consider adding?" },
+    { label: "OKR health check", prompt: "Do my initiatives map well to my OKRs? Are there OKRs with no initiative coverage?" },
+  ],
+  ideas: [
+    { label: "Help me frame a problem statement", prompt: "I want to write a strong problem statement for a new initiative. Ask me questions to help me frame it well." },
+    { label: "What evidence do I need?", prompt: "What types of evidence should I gather before moving an initiative from Idea to Discovery?" },
+    { label: "Score this with PIVOT", prompt: "Walk me through scoring my newest initiative with the PIVOT framework. Ask me each dimension one at a time." },
+  ],
+  discovery: [
+    { label: "What questions should I ask users?", prompt: "I'm running discovery interviews. What are the 5 best questions to validate the problem for my initiative?" },
+    { label: "Help me write a hypothesis", prompt: "Help me write a testable product hypothesis for my discovery initiative." },
+    { label: "Am I ready for Executive Review?", prompt: "What criteria should my initiative meet before moving from Discovery to Executive Review?" },
+  ],
+  execreview: [
+    { label: "Build my exec pitch", prompt: "Help me structure a compelling 3-minute executive pitch for my initiative. Ask me what you need." },
+    { label: "What objections will I face?", prompt: "What are the most likely objections leadership will raise about my initiative, and how should I prepare to address them?" },
+    { label: "Sharpen my ROI story", prompt: "Help me strengthen the ROI case for my initiative. What financial and strategic angles should I highlight?" },
+  ],
+  delivery: [
+    { label: "Help me with PI Risks", prompt: "Let's work on the Risks card for my PI Planning package. Ask me targeted questions to identify and document risks for this program increment." },
+    { label: "Who are my dependencies?", prompt: "Help me identify and document cross-team dependencies for my current PI. What teams and integrations should I be thinking about?" },
+    { label: "Draft PI Objectives", prompt: "Help me write strong PI Objectives for my approved initiatives. Ask me what you need about each one." },
+    { label: "Run a confidence vote", prompt: "Walk me through a PI confidence vote. What factors should my team consider, and what score would you recommend based on current data?" },
+    { label: "Check capacity", prompt: "Help me think through capacity planning for this PI. What squads and sprint capacity do I need to account for?" },
+  ],
+  portfolio: [
+    { label: "Rank my initiatives", prompt: "Based on WSJF and PIVOT scores, which initiatives should be in the next PI and which should be deferred?" },
+    { label: "Find my biggest risk", prompt: "Which initiative in my portfolio carries the highest execution risk right now?" },
+    { label: "What's missing from my portfolio?", prompt: "Looking at my strategic themes and OKRs, what capability or initiative type is missing from my portfolio?" },
+  ],
+  definition: [
+    { label: "Write epics and stories", prompt: "Help me break down my initiative into epics and user stories. Ask me what you need about the initiative first." },
+    { label: "Review my acceptance criteria", prompt: "Help me write strong, testable acceptance criteria for my next user story." },
+    { label: "Identify edge cases", prompt: "What edge cases and failure modes should I consider for my initiative before moving to delivery?" },
+  ],
+  handoff: [
+    { label: "What's missing from my handoff?", prompt: "Review the completeness of my engineering handoff package. What's missing and how critical is each gap?" },
+    { label: "Help me write a risk register", prompt: "Help me build a risk register for my engineering handoff. Ask me about the initiative and I'll provide details." },
+    { label: "Clarify my acceptance criteria", prompt: "Help me sharpen the acceptance criteria in my handoff package to be unambiguous for engineering." },
+  ],
+};
+
 // ─── Chatty ───────────────────────────────────────────────────
 export function Chatty({ currentView }) {
   const { foundation, initiatives, userName } = useApp();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([{
     role: "assistant",
-    text: `Hi! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
+    text: `Hi ${userName || ""}! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
   }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+
+  // Derive the base page key for bubble selection
+  const pageKey = currentView.startsWith("initiative_") ? "ideas"
+    : currentView === "delivery" ? "delivery"
+    : currentView;
+
+  const bubbles = PAGE_BUBBLES[pageKey] || PAGE_BUBBLES.dashboard;
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [msgs]);
 
@@ -509,18 +562,38 @@ export function Chatty({ currentView }) {
   useEffect(() => {
     setMsgs(m => [{
       ...m[0],
-      text: `Hi! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
+      text: `Hi ${userName || ""}! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
     }, ...m.slice(1)]);
-  }, [initiatives.length]);
+  }, [initiatives.length, userName]);
 
-  const send = async () => {
-    if (!input.trim()) return;
-    const userMsg = input; setInput(""); setLoading(true);
+  // Update context hint when page changes
+  useEffect(() => {
+    if (!open) return;
+    const pageLabels = {
+      dashboard: "Dashboard", foundation: "Foundation", ideas: "Ideas", discovery: "Discovery",
+      execreview: "Executive Review", definition: "Definition", delivery: "PI Planning",
+      portfolio: "Portfolio", handoff: "Handoff",
+    };
+    const label = pageLabels[pageKey] || pageKey;
+    // Only inject context message if user has sent at least one message
+    if (msgs.length > 1) {
+      setMsgs(m => [...m, {
+        role: "assistant",
+        text: `📍 You're now on the **${label}** page. I've updated my suggestions below — or just ask me anything.`,
+      }]);
+    }
+  }, [currentView]);
+
+  const send = async (userPrompt) => {
+    const message = userPrompt || input;
+    if (!message.trim()) return;
+    setInput("");
+    setLoading(true);
     const history = msgs.slice(-8).map(m => ({ role: m.role, content: m.text }));
-    setMsgs(m => [...m, { role: "user", text: userMsg }]);
+    setMsgs(m => [...m, { role: "user", text: message }]);
     const text = await callAI("chatty", {
       foundation, initiatives, currentView, userName,
-      question: userMsg, messages: history,
+      question: message, messages: history,
     }).catch(() => "I encountered an error. Please try again.");
     setMsgs(m => [...m, { role: "assistant", text }]);
     setLoading(false);
@@ -528,32 +601,56 @@ export function Chatty({ currentView }) {
 
   return (
     <>
+      {/* Floating toggle button */}
       <button onClick={() => setOpen(o => !o)}
         style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: T.gold, border: "none", color: T.ink, fontSize: 22, cursor: "pointer", boxShadow: "0 4px 20px rgba(212,168,67,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>
         {open ? "✕" : "◆"}
       </button>
 
       {open && (
-        <div style={{ position: "fixed", bottom: 88, right: 24, width: 380, height: 520, background: T.ink2, border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", zIndex: 1000, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "fixed", bottom: 88, right: 24, width: 400, height: 580, background: T.ink2, border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", zIndex: 1000, boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+
+          {/* Header */}
           <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 16, color: T.gold }}>◆</span>
             <span style={{ fontWeight: 700, color: T.loud }}>Chatty</span>
             <span style={{ fontSize: 11, color: T.muted, marginLeft: 4 }}>Your Product Intelligence Advisor</span>
           </div>
+
+          {/* Messages */}
           <div style={{ flex: 1, overflow: "auto", padding: "12px 14px" }}>
             {msgs.map((m, i) => (
               <div key={i} style={{ marginBottom: 12, display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
-                <div style={{ maxWidth: "85%", padding: "9px 13px", borderRadius: 10, fontSize: 13, lineHeight: 1.55, background: m.role === "user" ? T.goldD : T.ink3, color: m.role === "user" ? T.gold : T.body, border: `1px solid ${m.role === "user" ? T.goldB : T.border}`, whiteSpace: "pre-wrap" }}>{m.text}</div>
+                <div style={{ maxWidth: "88%", padding: "9px 13px", borderRadius: 10, fontSize: 13, lineHeight: 1.55, background: m.role === "user" ? T.goldD : T.ink3, color: m.role === "user" ? T.gold : T.body, border: `1px solid ${m.role === "user" ? T.goldB : T.border}`, whiteSpace: "pre-wrap" }}>{m.text}</div>
               </div>
             ))}
             {loading && <div style={{ color: T.gold, fontStyle: "italic", fontSize: 12, padding: "4px 12px" }}>◆ Thinking…</div>}
             <div ref={endRef} />
           </div>
-          <div style={{ padding: "10px 12px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 8 }}>
+
+          {/* Context-aware suggestion bubbles */}
+          <div style={{ padding: "10px 12px", borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              Suggestions for this page
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {bubbles.map((b, i) => (
+                <button key={i} onClick={() => send(b.prompt)} disabled={loading}
+                  style={{ fontSize: 11, padding: "5px 10px", borderRadius: 20, border: `1px solid ${T.goldB}`, background: "transparent", color: T.gold, cursor: "pointer", lineHeight: 1.3, textAlign: "left", transition: "background 0.15s" }}
+                  onMouseEnter={e => e.target.style.background = T.goldD}
+                  onMouseLeave={e => e.target.style.background = "transparent"}>
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Input */}
+          <div style={{ padding: "10px 12px", display: "flex", gap: 8 }}>
             <input style={{ ...css.input, flex: 1, fontSize: 13 }} value={input} onChange={e => setInput(e.target.value)}
               placeholder="Ask anything about your portfolio…"
               onKeyDown={e => e.key === "Enter" && !loading && send()} />
-            <button style={{ ...css.btnGold, padding: "8px 14px" }} onClick={send} disabled={loading || !input.trim()}>→</button>
+            <button style={{ ...css.btnGold, padding: "8px 14px" }} onClick={() => send()} disabled={loading || !input.trim()}>→</button>
           </div>
         </div>
       )}
