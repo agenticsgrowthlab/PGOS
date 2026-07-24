@@ -159,6 +159,30 @@ function buildMessages(action, payload) {
       break;
     }
 
+    case "competitor_analysis": {
+      const compList = (payload.competitors || []).map((c, i) =>
+        `#${i+1} ${c.name} (${c.tier}, threat:${c.threat_level}) — Overall:${c.overall_score} Digital:${c.digital_score} Mobile:${c.mobile_score} Claims:${c.claims_score} App Store:${c.app_store_rating}`
+      ).join("\n");
+      userContent = `You are a senior product strategy advisor analyzing the competitive landscape for ${foundation?.name || "this company"}.
+
+Company context:
+Mission: ${foundation?.mission || ""}
+OKRs: ${(foundation?.okrs || []).map(o => o.objective).join("; ")}
+
+Competitors (ranked by sort order):
+${compList}
+
+Provide a sharp, executive-ready competitive analysis covering:
+1. The #1 digital experience gap Mercury must close in 2025
+2. Where Mercury has defensible advantages competitors cannot easily replicate
+3. The biggest threat to Mercury's customer retention from this competitive set
+4. Three specific product moves Mercury should prioritize to gain digital competitive parity
+5. Which competitor is Mercury's most dangerous and why
+
+Be specific, cite the data above, and write in the style of a McKinsey competitive brief — direct, numbered, no filler.`;
+      break;
+    }
+
     default:
       userContent = question || payload.prompt || "";
   }
