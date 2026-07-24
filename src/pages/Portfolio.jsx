@@ -564,46 +564,53 @@ function ChattyBubble({ label, prompt, onSend, disabled }) {
 export function Chatty({ currentView }) {
   const { foundation, initiatives, userName } = useApp();
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState([{
-    role: "assistant",
-    text: `Hi! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
-  }]);
+  const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
-  const isMounted = useRef(true);
 
-  // Track mount state to guard async setState after unmount
-  useEffect(() => {
-    isMounted.current = true;
-    return () => { isMounted.current = false; };
-  }, []);
-
-  // Derive the base page key for bubble selection
   const pageKey = currentView.startsWith("initiative_") ? "ideas"
     : currentView === "delivery" ? "delivery"
     : currentView;
-
   const bubbles = PAGE_BUBBLES[pageKey] || PAGE_BUBBLES.dashboard;
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [msgs]);
+  // Set greeting when Chatty opens for first time
+  useEffect(() => {
+    if (open && msgs.length === 0) {
+      setMsgs([{
+        role: "assistant",
+        text: `Hi! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
+      }]);
+    }
+  }, [open]);
 
-  const send = async (userPrompt) => {
-    const message = typeof userPrompt === "string" ? userPrompt : input;
-    if (!message.trim()) return;
-    if (!isMounted.current) return;
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
+
+  async function send(question) {
+    const q = question || input.trim();
+    if (!q || loading) return;
     setInput("");
+    setMsgs(prev => [...prev, { role: "user", text: q }]);
     setLoading(true);
-    const history = msgs.slice(-8).map(m => ({ role: m.role, content: m.text }));
-    setMsgs(m => [...m, { role: "user", text: message }]);
-    const text = await callAI("chatty", {
-      foundation, initiatives, currentView, userName,
-      question: message, messages: history,
-    }).catch(() => "I encountered an error. Please try again.");
-    if (!isMounted.current) return;
-    setMsgs(m => [...m, { role: "assistant", text }]);
-    setLoading(false);
-  };
+    try {
+      const history = msgs.slice(-8).map(m => ({ role: m.role, content: m.text }));
+      const text = await callAI("chatty", {
+        foundation, initiatives, currentView, userName,
+        question: q, messages: history,
+      });
+      setMsgs(prev => [...prev, { role: "assistant", text }]);
+    } catch (err) {
+      setMsgs(prev => [...prev, { role: "assistant", text: "I encountered an error. Please try again." }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKey(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  }
 
   return (
     <>
@@ -648,10 +655,13 @@ export function Chatty({ currentView }) {
 
           {/* Input */}
           <div style={{ padding: "10px 12px", display: "flex", gap: 8 }}>
-            <input style={{ ...css.input, flex: 1, fontSize: 13 }} value={input} onChange={e => setInput(e.target.value)}
+            <input style={{ ...css.input, flex: 1, fontSize: 13 }} value={input}
+              onChange={e => setInput(e.target.value)}
               placeholder="Ask anything about your portfolio…"
-              onKeyDown={e => e.key === "Enter" && !loading && send()} />
-            <button style={{ ...css.btnGold, padding: "8px 14px" }} onClick={() => send()} disabled={loading || !input.trim()}>→</button>
+              onKeyDown={handleKey} />
+            <button style={{ ...css.btnGold, padding: "8px 14px" }}
+              onClick={() => send()}
+              disabled={loading || !input.trim()}>→</button>
           </div>
         </div>
       )}
