@@ -1,0 +1,230 @@
+/**
+ * /api/ai  — Single AI endpoint for all PGOS AI operations
+ *
+ * Body: { action, payload }
+ *
+ * Actions:
+ *   suggest        — generic foundation AI suggestions
+ *   clarify        — idea clarifying questions
+ *   pivot_coach    — PIVOT score coaching
+ *   eng_estimate   — engineering estimate
+ *   exec_brief     — executive investment brief
+ *   one_pager      — executive one-pager
+ *   personas       — customer personas
+ *   current_journey
+ *   future_journey
+ *   jtbd
+ *   use_cases
+ *   epics
+ *   risk_register
+ *   pi_planning
+ *   handoff
+ *   portfolio_analysis
+ *   chatty         — Chatty advisor (supports conversation history)
+ */
+
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const MODEL         = "claude-sonnet-4-6";
+
+// ─── Prompt registry ──────────────────────────────────────────
+function buildMessages(action, payload) {
+  const { foundation, initiative: ini, initiatives, messages, question } = payload;
+
+  const orgCtx = foundation
+    ? `Company Mission: ${foundation.mission}\nVision: ${foundation.vision}`
+    : "";
+
+  const iniCtx = ini
+    ? `Initiative: ${ini.title}\nProblem: ${ini.problem}\nOpportunity: ${ini.opportunity}\nStrategic Theme: ${ini.themeName || "Not set"}\nOKR: ${ini.okrName || "Not set"}\nEvidence: ${JSON.stringify(ini.evidence || {})}`
+    : "";
+
+  const systemMap = {
+    suggest:
+      "You are an enterprise product strategy consultant. Based on the company mission, vision, and existing context, provide specific, actionable recommendations. Be concise and executive-quality.",
+    clarify:
+      "You are a senior product manager. Ask 3–5 targeted clarifying questions to help sharpen a product idea. Focus on: Who is the primary user? What specific pain are we solving? What evidence exists? How does this connect to company strategy? Format as a numbered list.",
+    pivot_coach:
+      "You are a SAFe Portfolio Management advisor. Analyze this PIVOT score and give ONE specific coaching recommendation to improve the weakest dimension. Be direct and brief (2–3 sentences).",
+    eng_estimate:
+      "You are a senior engineering manager. Estimate implementation cost and effort for this initiative. Provide: Team size recommendation, Sprint estimate, Rough cost range, Key technical risks. Format as 4 bullet points.",
+    exec_brief:
+      "You are a Chief of Staff preparing an executive-quality investment brief for a SAFe Portfolio review. Structure: 1) Executive Summary, 2) Business Problem, 3) Opportunity, 4) Strategic Alignment (OKR, theme, capability), 5) Market & Customer Evidence, 6) Business Case (revenue, cost savings, ROI), 7) PIVOT Score Analysis, 8) Risks & Mitigations, 9) Investment Recommendation, 10) Questions Executives Will Ask (with recommended responses). Write in clear, board-ready language.",
+    one_pager:
+      "Write a crisp executive one-pager for this initiative. Format: Initiative name as header, then 5 sections each max 2 sentences: The Problem, Our Opportunity, Strategic Alignment, Business Case (include $ figures), Investment Ask & Expected Return. End with a bold Recommendation statement.",
+    personas:
+      "You are a senior UX researcher creating detailed customer personas for a wealth management platform. Create 2 personas. For each: Name, Role & Title, Demographics, Primary Goals (3), Core Pain Points (3), Day in the Life (2 sentences), Key Quote, Tech Comfort Level, What Success Looks Like. Use realistic names and be specific to wealth management.",
+    current_journey:
+      "Create a Current State Customer Journey Map for the primary persona. Use 5–6 stages. For each stage: Stage Name, What the advisor DOES, What they THINK/FEEL, Pain Points (specific), Workarounds they use today. Format with clear stage headers and dashes for sub-items.",
+    future_journey:
+      "Create a Future State Customer Journey Map showing how this initiative transforms the experience. Use the same 5–6 stages as the current state. For each: What the advisor DOES (new), How they FEEL (improved), Key Gains from the new capability, Moments of Delight. Be specific about what the technology does.",
+    jtbd:
+      "You are a product strategist applying the Jobs-to-be-Done framework. Identify 4–5 core JTBD for this initiative. For each: Job Statement (When I [situation], I want to [motivation], so I can [expected outcome]), Job Type (Functional/Emotional/Social), Importance (1–10), Current Satisfaction (1–10), Opportunity Score (Importance + (Importance - Satisfaction)), Key Insight. Also identify 2 Under-served Jobs that competitors are missing.",
+    use_cases:
+      "You are a senior product manager writing formal use cases. Create 4 use cases. For each: UC-ID (UC-01 etc), Title, Primary Actor, Preconditions (2), Main Success Flow (5–7 numbered steps), Alternative Flows (2), Exception Flows (1), Postconditions, Business Value Statement, JTBD Connection. Be specific to a wealth management advisor platform.",
+    epics:
+      "You are a SAFe Product Manager. Create one Epic per use case (4 epics total). For each epic: Epic ID (E-01), Epic Title, Hypothesis Statement (As a [user] I want [capability] so that [business outcome]), Business Value (1–10), Acceptance Criteria (4 items), Dependencies, T-Shirt Size (S/M/L/XL). Then under each epic, write 3–4 User Stories formatted as: Story ID, As a [persona] I want [action] so that [benefit], Acceptance Criteria (3 Given/When/Then items), Story Points (1/2/3/5/8), Priority (Must/Should/Could).",
+    risk_register:
+      "You are a SAFe Release Train Engineer doing risk assessment. Identify 5–6 risks for this initiative. For each: Risk ID (R-01), Risk Description, Category (Technical/Business/Compliance/Resource/Schedule), Likelihood (H/M/L), Impact (H/M/L), Risk Score, Mitigation Strategy, Recommended Owner role. End with a ROAM status suggestion (Resolved/Owned/Accepted/Mitigated) for each.",
+    pi_planning:
+      "You are a SAFe Release Train Engineer generating PI Planning outputs. Create a comprehensive PI Planning summary for all approved initiatives. Include: 1) PI Objectives (SMART, numbered), 2) PI Risks (ROAM format), 3) Cross-team Dependencies table, 4) Capacity & Load Assessment, 5) Confidence Vote recommendation (1–5 fist of five). Format clearly with section headers.",
+    handoff:
+      "You are a senior product manager assembling a complete engineering handoff package. Create a comprehensive, PI-ready handoff document. Include all sections: Initiative Overview, Business Context, Problem & Opportunity, Strategic Alignment, Customer Research Summary, Personas Summary, Current vs Future Journey Key Points, Jobs To Be Done, Use Cases, Epics & Stories, Risk Register (ROAM), Engineering Estimates & Team Structure, Definition of Done, Success Metrics, Dependencies, Open Questions for Engineering, Go/No-Go Checklist.",
+    portfolio_analysis:
+      "You are a SAFe Portfolio Manager. Analyze this portfolio and provide: 1) Top 3 recommended for next PI, with rationale, 2) One initiative that should be deferred (with reason), 3) Portfolio balance assessment (strategic coverage, risk profile), 4) One dependency concern across initiatives. Be specific and executive-ready.",
+    chatty:
+      `You are Chatty — an expert SAFe product management AI embedded in PGOS (Product Growth Operating System). You know the full company context and all initiatives. You are proactive, insightful, and executive-quality. You suggest dependencies, roadmap sequencing, evidence gaps, and portfolio balance issues. You are direct and helpful. You recommend the next best action for the user based on their current view and pipeline state. Never say "I cannot" — always give your best recommendation.`,
+  };
+
+  const system = systemMap[action] || systemMap.chatty;
+
+  // Build the user message based on action
+  let userContent = "";
+
+  switch (action) {
+    case "suggest":
+      userContent = `${orgCtx}\nRequest: Suggest ${payload.what || "improvements"} that align with this mission and vision. Format as a numbered list, maximum 4 items, each 1–2 sentences.`;
+      break;
+
+    case "clarify":
+      userContent = `Initiative title: ${ini?.title || payload.title}\nProblem: ${ini?.problem || payload.problem}\n${orgCtx}\nAsk clarifying questions to sharpen this idea.`;
+      break;
+
+    case "pivot_coach":
+      userContent = `${iniCtx}\nPIVOT Scores: P=${ini.pivot?.p} I=${ini.pivot?.i} V=${ini.pivot?.v} O=${ini.pivot?.o} T=${ini.pivot?.t}\nWeighted Score: ${payload.score?.toFixed(1)}\nCoach me on improving the weakest dimension.`;
+      break;
+
+    case "eng_estimate":
+      userContent = `${orgCtx}\n${iniCtx}`;
+      break;
+
+    case "exec_brief":
+    case "one_pager":
+      userContent = `${orgCtx}\n${iniCtx}\nPIVOT Score: ${payload.score?.toFixed(1)} — ${payload.tier}\nInvestment Requested: $${((ini.investment_requested || 0) / 1000000).toFixed(1)}M\nApproved: $${((ini.investment_approved || 0) / 1000000).toFixed(1)}M\nEng Estimate: ${ini.eng_teams} teams, ${ini.eng_sprints} sprints, $${((ini.eng_estimate || 0) / 1000).toFixed(0)}K`;
+      break;
+
+    case "personas":
+      userContent = `${orgCtx}\n${iniCtx}`;
+      break;
+
+    case "current_journey":
+      userContent = `${orgCtx}\n${iniCtx}\nPersonas: ${(ini.personas || "").substring(0, 300)}`;
+      break;
+
+    case "future_journey":
+      userContent = `${orgCtx}\n${iniCtx}\nCurrent State Journey: ${(ini.current_journey || "").substring(0, 400)}`;
+      break;
+
+    case "jtbd":
+      userContent = `${orgCtx}\n${iniCtx}\nPersonas: ${(ini.personas || "").substring(0, 300)}\nCurrent Journey: ${(ini.current_journey || "").substring(0, 300)}`;
+      break;
+
+    case "use_cases":
+      userContent = `${orgCtx}\n${iniCtx}\nJTBD: ${(ini.jtbd || "").substring(0, 400)}`;
+      break;
+
+    case "epics":
+      userContent = `${orgCtx}\n${iniCtx}\nUse Cases: ${(ini.use_cases || "").substring(0, 500)}\nJTBD: ${(ini.jtbd || "").substring(0, 300)}`;
+      break;
+
+    case "risk_register":
+      userContent = `${orgCtx}\n${iniCtx}\nEpics: ${(ini.epics || "").substring(0, 400)}`;
+      break;
+
+    case "pi_planning": {
+      const approved = (initiatives || []).filter(i => i.approved);
+      userContent = `${orgCtx}\nApproved Initiatives:\n${approved.map(i =>
+        `\n--- ${i.title} ---\nEpics: ${(i.epics || "Not yet defined").substring(0, 300)}\nRisks: ${(i.risk_register || "Not assessed").substring(0, 200)}`
+      ).join("\n")}`;
+      break;
+    }
+
+    case "handoff":
+      userContent = `${orgCtx}\n${iniCtx}\nApproved by: ${ini.approved_by} on ${ini.approved_date}\nPersonas: ${(ini.personas || "Not generated").substring(0, 300)}\nJTBD: ${(ini.jtbd || "Not generated").substring(0, 300)}\nCurrent Journey: ${(ini.current_journey || "").substring(0, 250)}\nFuture Journey: ${(ini.future_journey || "").substring(0, 250)}\nUse Cases: ${(ini.use_cases || "Not generated").substring(0, 400)}\nEpics & Stories: ${(ini.epics || "Not generated").substring(0, 500)}\nRisk Register: ${(ini.risk_register || "Not generated").substring(0, 300)}\nEng Estimate: ${ini.eng_estimate ? `$${(ini.eng_estimate / 1000).toFixed(0)}K, ${ini.eng_teams} teams, ${ini.eng_sprints} sprints` : "Not estimated"}`;
+      break;
+
+    case "portfolio_analysis": {
+      const ranked = (initiatives || [])
+        .map(i => ({ title: i.title, stage: i.stage }))
+        .sort((a, b) => (b.wsjf || 0) - (a.wsjf || 0));
+      userContent = `${orgCtx}\nInitiatives:\n${ranked.map(i => `- ${i.title} (Stage: ${i.stage})`).join("\n")}`;
+      break;
+    }
+
+    case "chatty": {
+      const iniList = (initiatives || [])
+        .map(i => `${i.title} (${i.stage})`)
+        .join("; ");
+      const ctxMsg = `Company Mission: ${foundation?.mission || ""}\nOKRs: ${(foundation?.okrs || []).map(o => o.objective).join("; ")}\nInitiatives (${initiatives?.length || 0}): ${iniList}\nCurrent screen: ${payload.currentView || "dashboard"}\nUser is: ${payload.userName || "Nicole"}`;
+      userContent = `Context:\n${ctxMsg}\n\nUser question: ${question}`;
+      break;
+    }
+
+    default:
+      userContent = question || payload.prompt || "";
+  }
+
+  // For Chatty, include conversation history
+  if (action === "chatty" && Array.isArray(messages) && messages.length > 0) {
+    const history = messages.slice(-10).map(m => ({
+      role: m.role,
+      content: m.content,
+    }));
+    return { system, messages: [...history, { role: "user", content: userContent }] };
+  }
+
+  return { system, messages: [{ role: "user", content: userContent }] };
+}
+
+// ─── Token budget per action ──────────────────────────────────
+const TOKEN_MAP = {
+  suggest: 600, clarify: 500, pivot_coach: 300, eng_estimate: 400,
+  exec_brief: 1200, one_pager: 600, personas: 1100, current_journey: 900,
+  future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
+  risk_register: 900, pi_planning: 1200, handoff: 1500,
+  portfolio_analysis: 700, chatty: 700,
+};
+
+// ─── Handler ──────────────────────────────────────────────────
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
+  }
+
+  const { action, payload = {} } = req.body;
+  if (!action) {
+    return res.status(400).json({ error: "action is required" });
+  }
+
+  try {
+    const { system, messages } = buildMessages(action, payload);
+    const max_tokens = TOKEN_MAP[action] || 700;
+
+    const response = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ model: MODEL, max_tokens, system, messages }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("Anthropic API error:", err);
+      return res.status(502).json({ error: "AI service error", detail: err });
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || "";
+    return res.status(200).json({ text });
+  } catch (err) {
+    console.error("AI handler error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}

@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.vercel/
+
+# Environment — NEVER commit secrets
+.env
+.env.local
+.env.production
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Temp uploads
+/tmp/

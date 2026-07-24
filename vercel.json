@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "functions": {
+    "api/ai.js":     { "maxDuration": 60 },
+    "api/data.js":   { "maxDuration": 30 },
+    "api/upload.js": { "maxDuration": 60 }
+  },
+  "rewrites": [
+    { "source": "/api/ai",     "destination": "/api/ai" },
+    { "source": "/api/data",   "destination": "/api/data" },
+    { "source": "/api/upload", "destination": "/api/upload" },
+    { "source": "/(.*)",       "destination": "/index.html" }
+  ]
+}
