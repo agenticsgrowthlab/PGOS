@@ -129,6 +129,7 @@ function toDateStr(d) {
 function GanttTimeline({ initiatives, updateIni }) {
   const timelineRef = useRef(null);
   const dragging = useRef(null);
+  const [lastSaved, setLastSaved] = useState(null);
 
   const year = new Date().getFullYear();
   const timelineStart = new Date(year, 0, 1);
@@ -177,6 +178,7 @@ function GanttTimeline({ initiatives, updateIni }) {
     dragging.current = null;
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
+    setLastSaved(new Date());
   };
 
   useEffect(() => () => {
@@ -188,7 +190,14 @@ function GanttTimeline({ initiatives, updateIni }) {
     <div style={css.card}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
         <div style={css.secHead}>Program Roadmap — {year}</div>
-        <div style={{ fontSize:11, color:T.muted }}>Drag bars to move · Drag edges to resize</div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2 }}>
+          <div style={{ fontSize:11, color:T.muted }}>Drag bars to move · Drag edges to resize</div>
+          {lastSaved && (
+            <div style={{ fontSize:10, color:T.green }}>
+              ✓ Saved {lastSaved.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", second:"2-digit" })}
+            </div>
+          )}
+        </div>
       </div>
 
       <div ref={timelineRef} style={{ position:"relative", marginBottom:8 }}>
@@ -243,20 +252,20 @@ function GanttTimeline({ initiatives, updateIni }) {
           return (
             <div key={ini.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"7px 0", borderBottom:`1px solid ${T.border}` }}>
               <input type="color" value={color}
-                onChange={e => updateIni(ini.id, d => ({ ...d, bar_color: e.target.value }))}
+                onChange={e => { updateIni(ini.id, d => ({ ...d, bar_color: e.target.value })); setLastSaved(new Date()); }}
                 style={{ width:24, height:24, border:"none", borderRadius:4, cursor:"pointer", background:"none", padding:0 }} title="Change bar color"/>
               <div style={{ fontSize:12, color:T.loud, fontWeight:600, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ini.title}</div>
               <Tag label={stageLabel(ini.stage)} color={stageColor(ini.stage)} />
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontSize:10, color:T.muted }}>Start</span>
                 <input type="date" value={toDateStr(start)}
-                  onChange={e => updateIni(ini.id, d => ({ ...d, roadmap_start: e.target.value }))}
+                  onChange={e => { updateIni(ini.id, d => ({ ...d, roadmap_start: e.target.value })); setLastSaved(new Date()); }}
                   style={{ ...css.input, width:130, fontSize:11, padding:"4px 8px" }} />
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontSize:10, color:T.muted }}>End</span>
                 <input type="date" value={toDateStr(end)}
-                  onChange={e => updateIni(ini.id, d => ({ ...d, roadmap_end: e.target.value }))}
+                  onChange={e => { updateIni(ini.id, d => ({ ...d, roadmap_end: e.target.value })); setLastSaved(new Date()); }}
                   style={{ ...css.input, width:130, fontSize:11, padding:"4px 8px" }} />
               </div>
             </div>
