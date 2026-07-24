@@ -450,29 +450,52 @@ export function Handoff() {
   );
 }
 
+// ─── Stage order for cumulative display ──────────────────────
+const STAGE_ORDER = ["idea","discovery","review","approved","definition","delivery","handoff","closed"];
+
+function stageIndex(stage) {
+  const idx = STAGE_ORDER.indexOf(stage);
+  return idx === -1 ? 0 : idx;
+}
+
+// Stage descriptions for each page
+const STAGE_META = {
+  discovery:  { minStage: "discovery",  label: "Reached Discovery",  sub: "Initiatives that have entered Discovery or beyond." },
+  execreview: { minStage: "review",     label: "Reached Exec Review", sub: "Initiatives under Executive Review or further along the pipeline." },
+  definition: { minStage: "definition", label: "In Definition",       sub: "Initiatives in Product Definition or later stages." },
+};
+
 // ─── Stage List View ──────────────────────────────────────────
 export function StageList({ stageFilter, title, setView }) {
   const { initiatives } = useApp();
 
-  const stageInits = initiatives.filter(i =>
-    i.stage === stageFilter || (stageFilter === "review" && (i.stage === "review" || i.stage === "approved"))
-  );
+  // Show all initiatives at or past this stage (cumulative pipeline view)
+  const meta = STAGE_META[stageFilter] || { minStage: stageFilter, sub: "Initiatives at this stage." };
+  const minIdx = stageIndex(meta.minStage);
+
+  const stageInits = initiatives
+    .filter(i => stageIndex(i.stage) >= minIdx)
+    .sort((a, b) => stageIndex(b.stage) - stageIndex(a.stage)); // furthest along first
 
   return (
     <div>
       <div style={css.h2}>{title}</div>
-      <div style={css.sub}>Initiatives at this stage.</div>
+      <div style={css.sub}>{meta.sub}</div>
+
       {stageInits.length === 0 && (
         <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
-          No initiatives at this stage yet.{" "}
+          No initiatives have reached this stage yet.{" "}
           <button style={{ ...css.btnOut, display: "inline" }} onClick={() => setView("ideas")}>Start in Ideas</button>
         </div>
       )}
+
       {stageInits.map(ini => {
         const score = calcPivot(ini.pivot);
         const tier = pivotTier(score);
+        const isCurrentStage = stageIndex(ini.stage) === minIdx;
         return (
-          <div key={ini.id} style={{ ...css.card, cursor: "pointer", borderLeft: `3px solid ${stageColor(ini.stage)}` }}
+          <div key={ini.id}
+            style={{ ...css.card, cursor: "pointer", borderLeft: `3px solid ${stageColor(ini.stage)}` }}
             onClick={() => setView("initiative_" + ini.id)}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1 }}>
@@ -480,6 +503,9 @@ export function StageList({ stageFilter, title, setView }) {
                 <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>{ini.slug} · {ini.source_detail}</div>
               </div>
               <Tag label={stageLabel(ini.stage)} color={stageColor(ini.stage)} />
+              {!isCurrentStage && (
+                <Tag label="→ advancing" color={T.green} />
+              )}
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 20, fontWeight: 900, color: tier.color }}>{score.toFixed(0)}</div>
                 <Tag label={tier.label} color={tier.color} bg={tier.bg} />

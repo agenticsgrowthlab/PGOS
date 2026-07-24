@@ -429,7 +429,11 @@ export function Ideas({ setView }) {
     if (ini) setView("initiative_" + ini.id);
   };
 
-  const ideas = initiatives.filter(i => i.stage === "idea");
+  // Show all initiatives — this is the master list / capture page
+  const ideas = [...initiatives].sort((a, b) => {
+    const order = ["idea","discovery","review","approved","definition","delivery","handoff","closed"];
+    return order.indexOf(a.stage) - order.indexOf(b.stage);
+  });
 
   return (
     <div>
@@ -464,19 +468,24 @@ export function Ideas({ setView }) {
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-        <div style={{ fontSize: 13, color: T.muted }}>Existing ideas: {ideas.length}</div>
+        <div style={{ fontSize: 13, color: T.muted }}>Initiatives in pipeline: {ideas.length}</div>
         <button style={css.btnGold} onClick={create} disabled={!form.title.trim()}>Create Initiative →</button>
       </div>
 
       {ideas.length > 0 && (
         <div style={{ ...css.card, marginTop: 20 }}>
-          <div style={css.secHead}>Open Ideas</div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={css.secHead}>All Initiatives — Pipeline Overview</div>
+            <div style={{ fontSize:11, color:T.muted }}>{ideas.length} total</div>
+          </div>
           {ideas.map(ini => (
-            <div key={ini.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: T.ink3, borderRadius: 6, marginBottom: 6, cursor: "pointer" }}
+            <div key={ini.id}
+              style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", background:T.ink3, borderRadius:6, marginBottom:6, cursor:"pointer", borderLeft:`3px solid ${stageColor(ini.stage)}` }}
               onClick={() => setView("initiative_" + ini.id)}>
-              <span style={{ fontSize: 12, color: T.muted }}>{ini.slug}</span>
-              <span style={{ fontSize: 13, color: T.loud, flex: 1 }}>{ini.title}</span>
-              <Tag label={ini.source} color={T.muted} />
+              <span style={{ fontSize:11, color:T.muted, minWidth:60 }}>{ini.slug}</span>
+              <span style={{ fontSize:13, color:T.loud, flex:1, fontWeight:600 }}>{ini.title}</span>
+              <Tag label={stageLabel(ini.stage)} color={stageColor(ini.stage)} />
+              <span style={{ fontSize:11, color:T.muted }}>→</span>
             </div>
           ))}
         </div>
