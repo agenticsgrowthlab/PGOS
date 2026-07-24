@@ -9,6 +9,69 @@ import { Portfolio, PIPlanning, Handoff, StageList, Chatty } from "./pages/Portf
 import { RefFramework, RefGuide } from "./pages/References";
 import { T, css, stageLabel, stageColor } from "./lib/tokens";
 
+// ─── PPT Download Button ─────────────────────────────────────
+function DownloadPPTBtn({ page, label, gold }) {
+  const [loading, setLoading] = useState(false);
+
+  // Map view names to ppt page keys
+  const PAGE_KEY_MAP = {
+    dashboard: "dashboard", foundation: "foundation",
+    ideas: "ideas", discovery: "discovery", execreview: "execreview",
+    portfolio: "portfolio", definition: "definition",
+    delivery: "delivery", handoff: "handoff",
+    ref_framework: null, ref_guide: null, chatty_note: null,
+    leadership: "leadership",
+  };
+
+  async function download() {
+    const pageKey = PAGE_KEY_MAP[page] ?? (page.startsWith("initiative_") ? null : page);
+    if (!pageKey) return; // no PPT for this view
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ppt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: pageKey }),
+      });
+      if (!res.ok) { console.error("PPT error", await res.text()); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PGOS_${pageKey}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PPT download error", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const noExport = ["ref_framework", "ref_guide", "chatty_note"].includes(page) || page.startsWith("initiative_");
+  if (noExport && !gold) return null;
+
+  return (
+    <button
+      onClick={download}
+      disabled={loading}
+      style={{
+        fontSize: 11, padding: "5px 12px", borderRadius: 6,
+        background: gold ? T.gold : "transparent",
+        border: `1px solid ${gold ? T.gold : T.border}`,
+        color: gold ? T.ink : T.muted,
+        cursor: loading ? "default" : "pointer",
+        fontWeight: gold ? 700 : 400,
+        opacity: loading ? 0.6 : 1,
+        whiteSpace: "nowrap",
+      }}>
+      {loading ? "Generating…" : label}
+    </button>
+  );
+}
+
 // ─── Inner App (has context access) ─────────────────────────
 function Inner() {
   const { loading, error, initiatives } = useApp();
@@ -60,22 +123,34 @@ function Inner() {
         <div style={{ background: T.ink2, borderBottom: `1px solid ${T.border}`, padding: "12px 32px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 40 }}>
           {activeIni && (
             <button style={css.btnGhost} onClick={() => {
-              // Go back to the appropriate stage list
               const stageToView = { discovery: "discovery", review: "execreview", approved: "execreview", definition: "definition", delivery: "delivery", handoff: "handoff" };
               setView(stageToView[activeIni.stage] || "ideas");
             }}>← Back</button>
           )}
           <span style={{ fontSize: 15, fontWeight: 700, color: T.loud }}>
-            {activeIni ? activeIni.title : view.charAt(0).toUpperCase() + view.slice(1).replace("_", " ")}
+            {activeIni ? activeIni.title : ({
+              dashboard: "Dashboard", foundation: "Foundation",
+              ideas: "Ideas · Stage 1", discovery: "Discovery · Stage 2",
+              execreview: "Executive Review · Stage 3", portfolio: "Portfolio · Stage 4",
+              definition: "Product Definition · Stage 5", delivery: "Delivery · Stage 6",
+              handoff: "Handoff · Stage 7", ref_framework: "NCM PM Framework",
+              ref_guide: "How To Use PGOS",
+            }[view] || view)}
           </span>
-          {activeIni && (
-            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-              {["idea", "discovery", "review", "approved", "definition", "delivery", "handoff"].map((s, i) => {
-                const done = ["idea", "discovery", "review", "approved", "definition", "delivery", "handoff"].indexOf(activeIni.stage) >= i;
-                return <div key={s} style={{ width: 8, height: 8, borderRadius: "50%", background: done ? stageColor(s) : T.border }} />;
-              })}
-            </div>
-          )}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            {activeIni && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {["idea", "discovery", "review", "approved", "definition", "delivery", "handoff"].map((s, i) => {
+                  const done = ["idea", "discovery", "review", "approved", "definition", "delivery", "handoff"].indexOf(activeIni.stage) >= i;
+                  return <div key={s} style={{ width: 8, height: 8, borderRadius: "50%", background: done ? stageColor(s) : T.border }} />;
+                })}
+              </div>
+            )}
+            {/* Per-page PPT download */}
+            <DownloadPPTBtn page={view} label="↓ PPT" />
+            {/* Leadership deck always in header */}
+            <DownloadPPTBtn page="leadership" label="↓ Leadership Deck" gold />
+          </div>
         </div>
 
         {/* Page content */}

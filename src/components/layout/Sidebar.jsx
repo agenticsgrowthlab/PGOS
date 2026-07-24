@@ -90,7 +90,7 @@ export function Sidebar({ view, setView }) {
         {sep("s3")}
 
         {sectionLabel("References")}
-        {navBtn("ref_framework", "Framework Deck")}
+        {navBtn("ref_framework", "NCM PM Framework")}
         {navBtn("ref_guide",     "How To Use PGOS")}
 
       </nav>
