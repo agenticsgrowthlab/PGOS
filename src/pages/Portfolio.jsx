@@ -537,6 +537,29 @@ const PAGE_BUBBLES = {
   ],
 };
 
+// ─── Bubble button — safe hover via state, no DOM mutation ──────
+function ChattyBubble({ label, prompt, onSend, disabled }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={() => onSend(prompt)}
+      disabled={disabled}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        fontSize: 11, padding: "5px 10px", borderRadius: 20,
+        border: `1px solid ${T.goldB}`,
+        background: hovered ? T.goldD : "transparent",
+        color: T.gold, cursor: disabled ? "default" : "pointer",
+        lineHeight: 1.3, textAlign: "left",
+        transition: "background 0.15s",
+        opacity: disabled ? 0.5 : 1,
+      }}>
+      {label}
+    </button>
+  );
+}
+
 // ─── Chatty ───────────────────────────────────────────────────
 export function Chatty({ currentView }) {
   const { foundation, initiatives, userName } = useApp();
@@ -618,12 +641,7 @@ export function Chatty({ currentView }) {
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {bubbles.map((b, i) => (
-                <button key={i} onClick={() => send(b.prompt)} disabled={loading}
-                  style={{ fontSize: 11, padding: "5px 10px", borderRadius: 20, border: `1px solid ${T.goldB}`, background: "transparent", color: T.gold, cursor: "pointer", lineHeight: 1.3, textAlign: "left", transition: "background 0.15s" }}
-                  onMouseEnter={e => e.target.style.background = T.goldD}
-                  onMouseLeave={e => e.target.style.background = "transparent"}>
-                  {b.label}
-                </button>
+                <ChattyBubble key={i} label={b.label} prompt={b.prompt} onSend={send} disabled={loading} />
               ))}
             </div>
           </div>
