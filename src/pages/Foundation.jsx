@@ -43,7 +43,17 @@ function CompetitorAnalysis({ competitors, foundation, addCompetitor, removeComp
   const runAiRefresh = async () => {
     setAiLoading(true);
     try {
-      const text = await callAI("competitor_analysis", { foundation, competitors });
+      // Pull our own product scores from foundation if available
+      const ourProduct = (foundation?.products || []).find(p => p.is_primary || p.type === "mobile_app") || (foundation?.products || [])[0];
+      const ourScores = ourProduct ? {
+        overall_score:   ourProduct.overall_score   || null,
+        digital_score:   ourProduct.digital_score   || null,
+        mobile_score:    ourProduct.mobile_score    || null,
+        claims_score:    ourProduct.claims_score    || null,
+        portal_score:    ourProduct.portal_score    || null,
+        app_store_rating: ourProduct.app_store_rating || null,
+      } : null;
+      const text = await callAI("competitor_analysis", { foundation, competitors, ourScores });
       if (text) {
         // Build scan_data: capture current scores for delta comparison
         const scan_data = {};

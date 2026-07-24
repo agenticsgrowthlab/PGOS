@@ -160,26 +160,43 @@ function buildMessages(action, payload) {
     }
 
     case "competitor_analysis": {
+      const orgName = foundation?.name || "this company";
       const compList = (payload.competitors || []).map((c, i) =>
-        `#${i+1} ${c.name} (${c.tier}, threat:${c.threat_level}) — Overall:${c.overall_score} Digital:${c.digital_score} Mobile:${c.mobile_score} Claims:${c.claims_score} App Store:${c.app_store_rating}`
+        `#${i+1} ${c.name} (${c.tier}, threat:${c.threat_level}) — Overall:${c.overall_score} Digital:${c.digital_score} Mobile:${c.mobile_score} Claims:${c.claims_score} Portal:${c.portal_score} App Store★:${c.app_store_rating > 0 ? c.app_store_rating : "not in dataset"} | PM advantage: ${c.our_advantage || "not assessed"} | PM gap: ${c.our_gap || "not assessed"}`
       ).join("\n");
-      userContent = `You are a senior product strategy advisor analyzing the competitive landscape for ${foundation?.name || "this company"}.
 
-Company context:
-Mission: ${foundation?.mission || ""}
-OKRs: ${(foundation?.okrs || []).map(o => o.objective).join("; ")}
+      // Our own scores — passed from UI when available
+      const ourScores = payload.ourScores;
+      const ourScoreBlock = ourScores
+        ? `${orgName} self-assessment (PM-entered, treat as verified):
+Overall: ${ourScores.overall_score || "not set"} | Digital: ${ourScores.digital_score || "not set"} | Mobile: ${ourScores.mobile_score || "not set"} | Claims: ${ourScores.claims_score || "not set"} | App Store★: ${ourScores.app_store_rating || "not set"}`
+        : `${orgName} self-scores: not yet entered in the platform. Use only the PM-assessed advantage/gap fields per competitor to infer our relative position — do not invent numeric scores for ${orgName}.`;
 
-Competitors (ranked by sort order):
+      userContent = `You are a senior product strategy advisor analyzing the competitive landscape for ${orgName}.
+
+EVIDENCE RULES — every number you cite must exist in this dataset:
+- All competitor scores (Overall, Digital, Mobile, Claims, Portal) are PM-assessed on a 0–100 scale. Cite them directly.
+- App Store★ ratings are public iOS/Android listings for competitors only. If marked "not in dataset", omit the number.
+- If ${orgName}'s own scores appear in the self-assessment block below, you may compare against them. If not, reference only the PM-assessed advantage and gap fields — never invent a numeric score for ${orgName} from your training data.
+- The PM advantage and gap fields are ground truth assessments. Quote them; do not paraphrase into invented numbers.
+
+Company: ${orgName}
+Mission: ${foundation?.mission || "not set"}
+OKRs: ${(foundation?.okrs || []).map(o => o.objective).join("; ") || "not set"}
+
+${ourScoreBlock}
+
+Competitor data (scores 0–100 PM-assessed; App Store★ = public listing):
 ${compList}
 
-Provide a sharp, executive-ready competitive analysis covering:
-1. The #1 digital experience gap Mercury must close in 2025
-2. Where Mercury has defensible advantages competitors cannot easily replicate
-3. The biggest threat to Mercury's customer retention from this competitive set
-4. Three specific product moves Mercury should prioritize to gain digital competitive parity
-5. Which competitor is Mercury's most dangerous and why
+Provide an executive-ready competitive analysis:
+1. The #1 digital gap ${orgName} must close this year — cite specific competitor scores that are highest in that dimension
+2. Where ${orgName} has defensible advantages — quote the PM advantage fields directly
+3. The biggest customer retention threat — name the competitor, cite their score or capability from the data
+4. Three prioritized product moves — each tied to a specific named gap from the data above
+5. Most dangerous competitor and why — justify with threat level and dimension scores
 
-Be specific, cite the data above, and write in the style of a McKinsey competitive brief — direct, numbered, no filler.`;
+McKinsey style: direct, numbered, evidence-cited. Every claim traceable to data above. No invented numbers.`;
       break;
     }
 
