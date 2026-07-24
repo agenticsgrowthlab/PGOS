@@ -543,11 +543,18 @@ export function Chatty({ currentView }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([{
     role: "assistant",
-    text: `Hi ${userName || ""}! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
+    text: `Hi! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
   }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const isMounted = useRef(true);
+
+  // Track mount state to guard async setState after unmount
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   // Derive the base page key for bubble selection
   const pageKey = currentView.startsWith("initiative_") ? "ideas"
@@ -558,35 +565,10 @@ export function Chatty({ currentView }) {
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [msgs]);
 
-  // Update greeting when initiatives load
-  useEffect(() => {
-    setMsgs(m => [{
-      ...m[0],
-      text: `Hi ${userName || ""}! I'm your product intelligence advisor. I know your full pipeline — ${initiatives.length} initiatives across all stages. What do you need?`,
-    }, ...m.slice(1)]);
-  }, [initiatives.length, userName]);
-
-  // Update context hint when page changes
-  useEffect(() => {
-    if (!open) return;
-    const pageLabels = {
-      dashboard: "Dashboard", foundation: "Foundation", ideas: "Ideas", discovery: "Discovery",
-      execreview: "Executive Review", definition: "Definition", delivery: "PI Planning",
-      portfolio: "Portfolio", handoff: "Handoff",
-    };
-    const label = pageLabels[pageKey] || pageKey;
-    // Only inject context message if user has sent at least one message
-    if (msgs.length > 1) {
-      setMsgs(m => [...m, {
-        role: "assistant",
-        text: `📍 You're now on the **${label}** page. I've updated my suggestions below — or just ask me anything.`,
-      }]);
-    }
-  }, [currentView]);
-
   const send = async (userPrompt) => {
-    const message = userPrompt || input;
+    const message = typeof userPrompt === "string" ? userPrompt : input;
     if (!message.trim()) return;
+    if (!isMounted.current) return;
     setInput("");
     setLoading(true);
     const history = msgs.slice(-8).map(m => ({ role: m.role, content: m.text }));
@@ -595,6 +577,7 @@ export function Chatty({ currentView }) {
       foundation, initiatives, currentView, userName,
       question: message, messages: history,
     }).catch(() => "I encountered an error. Please try again.");
+    if (!isMounted.current) return;
     setMsgs(m => [...m, { role: "assistant", text }]);
     setLoading(false);
   };
