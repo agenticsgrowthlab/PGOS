@@ -2,7 +2,7 @@
 // Adoption metrics, customer feedback, business outcomes, time-series sparklines
 
 import { useState, useEffect, useCallback } from "react";
-import { useApp } from "../context/AppContext";
+import { useApp } from "../contexts/AppContext";
 import { updateInitiative, listMetrics, createMetric, deleteMetric } from "../lib/api";
 import { callAI } from "../lib/api";
 

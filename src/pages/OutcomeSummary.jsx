@@ -2,7 +2,7 @@
 // Executive narrative, OKR linkage, PIVOT predicted vs actual, lessons learned, next action
 
 import { useState, useEffect, useCallback } from "react";
-import { useApp } from "../context/AppContext";
+import { useApp } from "../contexts/AppContext";
 import { updateInitiative, callAI } from "../lib/api";
 
 const T = {
