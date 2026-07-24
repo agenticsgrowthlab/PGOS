@@ -79,7 +79,7 @@ function PivotCompare({ ini }) {
 }
 
 function OKRLinkage({ ini, okrs }) {
-  const okr = okrs.find(o => o.id === ini.okr_id);
+  const okr = (okrs || []).find(o => o.id === ini.okr_id);
   if (!okr) return (
     <div style={{ color: T.muted, fontSize: 13 }}>No OKR linked to this initiative.</div>
   );
@@ -104,7 +104,7 @@ function OKRLinkage({ ini, okrs }) {
 }
 
 export default function OutcomeSummary() {
-  const { initiatives, okrs, refreshInitiatives } = useApp();
+  const { initiatives = [], okrs = [], refreshInitiatives } = useApp();
   const [selId, setSelId] = useState("");
   const [aiNarrative, setAiNarrative] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -114,7 +114,7 @@ export default function OutcomeSummary() {
 
   useEffect(() => {
     if (initiatives.length && !selId) {
-      const withData = initiatives.find(i => i.launch_date || i.adoption_rate);
+      const withData = (initiatives || []).find(i => i.launch_date || i.adoption_rate);
       setSelId(withData?.id || initiatives[0]?.id || "");
     }
   }, [initiatives]);
@@ -135,7 +135,7 @@ export default function OutcomeSummary() {
     setAiLoading(true);
     setAiNarrative("");
     try {
-      const okr = okrs.find(o => o.id === ini.okr_id) || null;
+      const okr = (okrs || []).find(o => o.id === ini.okr_id) || null;
       const res = await callAI("outcome_summary", { ini, okr });
       const narrative = res?.data || "No narrative returned.";
       setAiNarrative(narrative);

@@ -86,7 +86,7 @@ function AIBox({ label, text, loading }) {
 }
 
 export default function Measure() {
-  const { initiatives, okrs, orgId, refreshInitiatives } = useApp();
+  const { initiatives = [], okrs = [], orgId, refreshInitiatives } = useApp();
   const [selId, setSelId] = useState("");
   const [metrics, setMetrics] = useState([]);
   const [aiText, setAiText] = useState("");
