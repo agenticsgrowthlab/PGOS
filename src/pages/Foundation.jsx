@@ -11,6 +11,7 @@ const TABS = [
   ["strategy", "Strategy"],
   ["capabilities", "Capabilities"],
   ["products", "Products"],
+  ["competitors", "Competitive Analysis"],
   ["architecture", "Architecture"],
 ];
 
@@ -21,6 +22,7 @@ export function Foundation() {
     addTheme, removeTheme, updateThemesLocal,
     addCapability, removeCap, updateCapsLocal,
     addProduct, updateProductLocal, removeProduct,
+    competitors, addCompetitor, updateComp, removeCompetitor,
   } = useApp();
 
   const [tab, setTab] = useState("mission");
@@ -244,6 +246,110 @@ export function Foundation() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+
+      {/* ── COMPETITIVE ANALYSIS ── */}
+      {tab === "competitors" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div>
+              <div style={css.secHead}>Competitive Analysis</div>
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>How competitors position on digital experience, claims, and customer portal vs Mercury</div>
+            </div>
+            <button style={css.btnGhost} onClick={addCompetitor}>+ Add Competitor</button>
+          </div>
+
+          {/* Scorecard summary */}
+          {competitors.length > 0 && (
+            <div style={{ ...css.card, background: T.ink3, marginBottom: 8, padding: "10px 16px", borderRadius: "10px 10px 0 0" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.8fr 70px 70px 70px 70px 70px 90px 80px", gap: 8, alignItems: "center" }}>
+                {["Competitor", "Overall", "Digital", "Mobile", "Claims", "Portal", "App Store", "Threat"].map(h => (
+                  <div key={h} style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{h}</div>
+                ))}
+              </div>
+            </div>
+          )}
+          {competitors.map((c, idx) => {
+            const threatColor = c.threat_level === "high" ? T.red : c.threat_level === "medium" ? T.amber : T.green;
+            const tierColor = c.tier === "disruptor" ? T.purple : c.tier === "primary" ? T.steel : T.muted;
+            const scoreColor = (s) => s >= 85 ? T.red : s >= 70 ? T.amber : T.green;
+            return (
+              <div key={c.id} style={{ ...css.card, marginBottom: 4, borderRadius: idx === competitors.length - 1 ? "0 0 10px 10px" : "0", borderTop: "none", padding: "12px 16px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.8fr 70px 70px 70px 70px 70px 90px 80px", gap: 8, alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>{c.name}</div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 3 }}>
+                      <Tag label={c.tier} color={tierColor} />
+                      <span style={{ fontSize: 10, color: T.muted }}>{c.market_share_pct > 0 ? `${c.market_share_pct}% share` : ""}</span>
+                    </div>
+                  </div>
+                  {[c.overall_score, c.digital_score, c.mobile_score, c.claims_score, c.portal_score].map((s, i) => (
+                    <div key={i} style={{ textAlign: "center", fontSize: 18, fontWeight: 800, color: s > 0 ? scoreColor(s) : T.muted }}>{s || "—"}</div>
+                  ))}
+                  <div style={{ textAlign: "center", fontSize: 13, fontWeight: 700, color: c.app_store_rating > 0 ? T.gold : T.muted }}>
+                    {c.app_store_rating > 0 ? `★ ${Number(c.app_store_rating).toFixed(1)}` : "—"}
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <Tag label={c.threat_level || "—"} color={threatColor} />
+                  </div>
+                </div>
+
+                {/* Expanded detail */}
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", marginBottom: 6 }}>Key Differentiator</div>
+                    <div style={{ fontSize: 12, color: T.body, lineHeight: 1.6, background: T.ink3, padding: "8px 10px", borderRadius: 6 }}>{c.key_differentiator || "—"}</div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: T.green, textTransform: "uppercase", marginBottom: 4 }}>Our Advantage</div>
+                      <div style={{ fontSize: 11, color: T.body, lineHeight: 1.55, background: "rgba(46,197,113,0.06)", padding: "8px 10px", borderRadius: 6, border: `1px solid rgba(46,197,113,0.15)` }}>{c.our_advantage || "—"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: T.red, textTransform: "uppercase", marginBottom: 4 }}>Our Gap</div>
+                      <div style={{ fontSize: 11, color: T.body, lineHeight: 1.55, background: "rgba(231,76,60,0.06)", padding: "8px 10px", borderRadius: 6, border: `1px solid rgba(231,76,60,0.15)` }}>{c.our_gap || "—"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Strengths & Weaknesses */}
+                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", marginBottom: 6 }}>Strengths</div>
+                    {(c.strengths || []).map((s, i) => (
+                      <div key={i} style={{ fontSize: 11, color: T.body, padding: "3px 0", borderBottom: `1px solid ${T.border}`, lineHeight: 1.5 }}>▪ {s}</div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", marginBottom: 6 }}>Weaknesses</div>
+                    {(c.weaknesses || []).map((w, i) => (
+                      <div key={i} style={{ fontSize: 11, color: T.body, padding: "3px 0", borderBottom: `1px solid ${T.border}`, lineHeight: 1.5 }}>▪ {w}</div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                  <button style={{ ...css.btnGhost, fontSize: 11, color: T.red }} onClick={() => removeCompetitor(c.id)}>Remove</button>
+                </div>
+              </div>
+            );
+          })}
+
+          {competitors.length === 0 && (
+            <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
+              No competitors added yet. Run the competitor seed SQL or click + Add Competitor.
+            </div>
+          )}
+
+          {/* Legend */}
+          <div style={{ ...css.card, marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: T.muted, display: "flex", gap: 20, flexWrap: "wrap" }}>
+              <span>Scores 0–100 · <strong style={{ color: T.red }}>85+</strong> = strong threat · <strong style={{ color: T.amber }}>70–84</strong> = moderate · <strong style={{ color: T.green }}>below 70</strong> = gap opportunity</span>
+              <span>Tiers: <strong style={{ color: T.steel }}>primary</strong> = direct competitor · <strong style={{ color: T.purple }}>disruptor</strong> = digital-native challenger · <strong style={{ color: T.muted }}>secondary</strong> = adjacent</span>
+            </div>
           </div>
         </div>
       )}

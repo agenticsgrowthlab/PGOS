@@ -80,6 +80,12 @@ export const clearConversations   = (org_id)  => data("conversations", "clear", 
 export const getPreferences       = (org_id)  => data("preferences", "get", { org_id });
 export const updatePreferences    = (payload) => data("preferences", "update", payload);
 
+// Competitors
+export const listCompetitors      = (org_id)  => data("competitors", "list", { org_id });
+export const createCompetitor     = (payload) => data("competitors", "create", payload);
+export const updateCompetitor     = (payload) => data("competitors", "update", payload);
+export const deleteCompetitor     = (id)      => data("competitors", "delete", { id });
+
 // ─── File upload ──────────────────────────────────────────────
 export async function uploadFile(file, org_id) {
   const formData = new FormData();

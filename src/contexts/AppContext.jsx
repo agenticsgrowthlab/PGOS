@@ -7,6 +7,7 @@ import {
   createCapability, deleteCapability, createProduct,
   updateProduct, deleteProduct,
   updatePreferences,
+  listCompetitors, createCompetitor, updateCompetitor, deleteCompetitor,
 } from "../lib/api";
 import { normalizeInitiative, denormalizeInitiative } from "../lib/tokens";
 
@@ -31,6 +32,7 @@ export function AppProvider({ children }) {
   const [error, setError] = useState(null);
   const [userName, setUserName] = useState("Nicole");
   const [roadmapLastSaved, setRoadmapLastSaved] = useState(null);
+  const [competitors, setCompetitors] = useState([]);
 
   // ── Bootstrap: load everything on mount ────────────────────
   useEffect(() => {
@@ -67,6 +69,7 @@ export function AppProvider({ children }) {
           architecture: org.architecture || [],
         });
         setInitiativesState((inisRes.data || []).map(normalizeInitiative));
+        setCompetitors(org.competitors || []);
       } catch (err) {
         console.error("Bootstrap error:", err);
         setError(err.message);
@@ -241,6 +244,26 @@ export function AppProvider({ children }) {
     return null;
   }, [orgId]);
 
+  // ── Competitor CRUD ─────────────────────────────────────────
+  const addCompetitor = useCallback(async () => {
+    if (!orgId) return;
+    const res = await createCompetitor({
+      org_id: orgId, name: "New Competitor", tier: "primary",
+      threat_level: "medium", sort_order: competitors.length,
+    });
+    if (res.data) setCompetitors(prev => [...prev, res.data]);
+  }, [orgId, competitors.length]);
+
+  const updateComp = useCallback((id, changes) => {
+    setCompetitors(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c));
+    updateCompetitor({ id, ...changes }).catch(console.error);
+  }, []);
+
+  const removeCompetitor = useCallback(async (id) => {
+    await deleteCompetitor(id).catch(console.error);
+    setCompetitors(prev => prev.filter(c => c.id !== id));
+  }, []);
+
   // ── Roadmap last saved ──────────────────────────────────────
   const saveRoadmapTimestamp = useCallback(async () => {
     if (!orgId) return;
@@ -267,6 +290,9 @@ export function AppProvider({ children }) {
     addTheme, removeTheme, updateThemesLocal,
     addCapability, removeCap, updateCapsLocal,
     addProduct, updateProductLocal, removeProduct,
+
+    // Competitors
+    competitors, addCompetitor, updateComp, removeCompetitor,
 
     // Roadmap timestamp
     roadmapLastSaved, saveRoadmapTimestamp,

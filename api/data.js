@@ -25,13 +25,14 @@ async function handleOrganization(sql, action, payload) {
       if (!rows.length) return { data: null };
       const org = rows[0];
       // Attach nested data for a full foundation load in one call
-      const [okrs, themes, caps, prods, assets, prefs] = await Promise.all([
+      const [okrs, themes, caps, prods, assets, prefs, comps] = await Promise.all([
         sql`SELECT * FROM okrs WHERE org_id=${org.id} ORDER BY sort_order`,
         sql`SELECT * FROM strategic_themes WHERE org_id=${org.id} ORDER BY sort_order`,
         sql`SELECT * FROM capabilities WHERE org_id=${org.id} ORDER BY sort_order`,
         sql`SELECT * FROM products WHERE org_id=${org.id} ORDER BY sort_order`,
         sql`SELECT * FROM architecture_assets WHERE org_id=${org.id} ORDER BY uploaded_at`,
         sql`SELECT * FROM user_preferences WHERE org_id=${org.id} LIMIT 1`,
+        sql`SELECT * FROM competitors WHERE org_id=${org.id} ORDER BY sort_order`,
       ]);
       return {
         data: {
@@ -42,6 +43,7 @@ async function handleOrganization(sql, action, payload) {
           products: prods,
           architecture: assets,
           preferences: prefs[0] || { user_name: "Nicole" },
+          competitors: comps,
         },
       };
     }
@@ -403,6 +405,63 @@ async function handlePreferences(sql, action, payload) {
   }
 }
 
+// ─── COMPETITORS ──────────────────────────────────────────────
+async function handleCompetitors(sql, action, payload) {
+  switch (action) {
+    case "list": {
+      const rows = await sql`SELECT * FROM competitors WHERE org_id=${payload.org_id} ORDER BY sort_order`;
+      return { data: rows };
+    }
+    case "create": {
+      const { org_id, name, tier = "primary", threat_level = "medium", sort_order = 0 } = payload;
+      const rows = await sql`
+        INSERT INTO competitors (org_id, name, tier, threat_level, sort_order)
+        VALUES (${org_id}, ${name}, ${tier}, ${threat_level}, ${sort_order})
+        RETURNING *
+      `;
+      return { data: rows[0] };
+    }
+    case "update": {
+      const {
+        id, name, tier, threat_level,
+        overall_score, digital_score, mobile_score, claims_score, portal_score,
+        market_share_pct, app_store_rating, jd_power_rank,
+        key_differentiator, strengths, weaknesses,
+        our_advantage, our_gap, sort_order,
+      } = payload;
+      const rows = await sql`
+        UPDATE competitors SET
+          name             = COALESCE(${name}, name),
+          tier             = COALESCE(${tier}, tier),
+          threat_level     = COALESCE(${threat_level}, threat_level),
+          overall_score    = COALESCE(${overall_score}, overall_score),
+          digital_score    = COALESCE(${digital_score}, digital_score),
+          mobile_score     = COALESCE(${mobile_score}, mobile_score),
+          claims_score     = COALESCE(${claims_score}, claims_score),
+          portal_score     = COALESCE(${portal_score}, portal_score),
+          market_share_pct = COALESCE(${market_share_pct}, market_share_pct),
+          app_store_rating = COALESCE(${app_store_rating}, app_store_rating),
+          jd_power_rank    = COALESCE(${jd_power_rank}, jd_power_rank),
+          key_differentiator = COALESCE(${key_differentiator}, key_differentiator),
+          strengths        = COALESCE(${strengths}, strengths),
+          weaknesses       = COALESCE(${weaknesses}, weaknesses),
+          our_advantage    = COALESCE(${our_advantage}, our_advantage),
+          our_gap          = COALESCE(${our_gap}, our_gap),
+          sort_order       = COALESCE(${sort_order}, sort_order)
+        WHERE id=${id}
+        RETURNING *
+      `;
+      return { data: rows[0] };
+    }
+    case "delete": {
+      await sql`DELETE FROM competitors WHERE id=${payload.id}`;
+      return { data: { deleted: true } };
+    }
+    default:
+      throw new Error(`Unknown action for competitors: ${action}`);
+  }
+}
+
 // ─── SEED STATUS ───────────────────────────────────────────────
 async function handleSeedStatus(sql) {
   const rows = await sql`SELECT id FROM organization LIMIT 1`;
@@ -420,6 +479,7 @@ const resourceMap = {
   notes: handleNotes,
   conversations: handleConversations,
   preferences: handlePreferences,
+  competitors: handleCompetitors,
 };
 
 // ─── HANDLER ──────────────────────────────────────────────────
