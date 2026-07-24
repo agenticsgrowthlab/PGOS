@@ -315,7 +315,24 @@ async function handleInitiatives(sql, action, payload) {
           handoff_package  = COALESCE(${p.handoff_package}, handoff_package),
           roadmap_start    = COALESCE(${p.roadmap_start || null}, roadmap_start),
           roadmap_end      = COALESCE(${p.roadmap_end || null}, roadmap_end),
-          bar_color        = COALESCE(${p.bar_color || null}, bar_color)
+          bar_color        = COALESCE(${p.bar_color || null}, bar_color),
+          launch_date      = COALESCE(${p.launch_date || null}, launch_date),
+          adoption_rate    = COALESCE(${p.adoption_rate}, adoption_rate),
+          monthly_active_users = COALESCE(${p.monthly_active_users}, monthly_active_users),
+          daily_active_users   = COALESCE(${p.daily_active_users}, daily_active_users),
+          feature_utilization  = COALESCE(${p.feature_utilization}, feature_utilization),
+          nps_score        = COALESCE(${p.nps_score}, nps_score),
+          csat_score       = COALESCE(${p.csat_score}, csat_score),
+          survey_responses = COALESCE(${p.survey_responses}, survey_responses),
+          key_verbatims    = COALESCE(${p.key_verbatims}, key_verbatims),
+          call_deflection_pct  = COALESCE(${p.call_deflection_pct}, call_deflection_pct),
+          revenue_realized     = COALESCE(${p.revenue_realized}, revenue_realized),
+          cost_savings_realized = COALESCE(${p.cost_savings_realized}, cost_savings_realized),
+          target_met       = COALESCE(${p.target_met}, target_met),
+          measure_notes    = COALESCE(${p.measure_notes}, measure_notes),
+          lessons_learned  = COALESCE(${p.lessons_learned}, lessons_learned),
+          next_action      = COALESCE(${p.next_action}, next_action),
+          outcome_summary  = COALESCE(${p.outcome_summary}, outcome_summary)
         WHERE id = ${p.id}
         RETURNING *
       `;
@@ -405,6 +422,31 @@ async function handlePreferences(sql, action, payload) {
   }
 }
 
+// ─── INITIATIVE METRICS ────────────────────────────────────────
+async function handleMetrics(sql, action, payload) {
+  switch (action) {
+    case "list": {
+      const rows = await sql`SELECT * FROM initiative_metrics WHERE initiative_id=${payload.initiative_id} ORDER BY metric_date ASC`;
+      return { data: rows };
+    }
+    case "create": {
+      const { initiative_id, metric_date, mau, dau, adoption_rate, nps, csat, calls_deflected } = payload;
+      const rows = await sql`
+        INSERT INTO initiative_metrics (initiative_id, metric_date, mau, dau, adoption_rate, nps, csat, calls_deflected)
+        VALUES (${initiative_id}, ${metric_date}, ${mau||0}, ${dau||0}, ${adoption_rate||0}, ${nps||0}, ${csat||0}, ${calls_deflected||0})
+        RETURNING *
+      `;
+      return { data: rows[0] };
+    }
+    case "delete": {
+      await sql`DELETE FROM initiative_metrics WHERE id=${payload.id}`;
+      return { data: { deleted: true } };
+    }
+    default:
+      throw new Error(`Unknown action for metrics: ${action}`);
+  }
+}
+
 // ─── COMPETITORS ──────────────────────────────────────────────
 async function handleCompetitors(sql, action, payload) {
   switch (action) {
@@ -480,6 +522,7 @@ const resourceMap = {
   conversations: handleConversations,
   preferences: handlePreferences,
   competitors: handleCompetitors,
+  metrics: handleMetrics,
 };
 
 // ─── HANDLER ──────────────────────────────────────────────────

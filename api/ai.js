@@ -183,6 +183,84 @@ Be specific, cite the data above, and write in the style of a McKinsey competiti
       break;
     }
 
+    case "measure_insights": {
+      const ini = payload.ini || {};
+      const metrics = payload.metrics || [];
+      const trend = metrics.length > 1
+        ? metrics.map(m => `${(m.metric_date||"").slice(5,10)} MAU=${m.mau} NPS=${m.nps} CSAT=${m.csat}`).join(" | ")
+        : "No trend data yet.";
+      userContent = `You are a senior Product Analytics advisor. Analyze the post-launch performance of this initiative and surface critical insights.
+
+Initiative: ${ini.title} (${ini.slug})
+Launch Date: ${ini.launch_date || "Unknown"}
+
+ADOPTION METRICS:
+- Adoption Rate: ${ini.adoption_rate}% (target: 40%)
+- Monthly Active Users: ${Number(ini.monthly_active_users||0).toLocaleString()}
+- Daily Active Users: ${Number(ini.daily_active_users||0).toLocaleString()}
+- Feature Utilization: ${ini.feature_utilization}%
+
+CUSTOMER FEEDBACK:
+- NPS: ${ini.nps_score} (insurance industry avg: 22)
+- CSAT: ${ini.csat_score}/5.0
+- Survey Responses: ${ini.survey_responses}
+- Key Verbatims: ${(ini.key_verbatims || []).join(" | ")}
+
+BUSINESS OUTCOMES:
+- Call Deflection: ${ini.call_deflection_pct}%
+- Revenue Realized: $${Number(ini.revenue_realized||0).toLocaleString()}
+- Cost Savings: $${Number(ini.cost_savings_realized||0).toLocaleString()}
+- Target Met: ${ini.target_met ? "YES" : "NOT YET"}
+
+Weekly Trend: ${trend}
+
+PM Notes: ${ini.measure_notes || "None"}
+
+Provide:
+1. **Performance Summary** — 2-sentence verdict on where this stands
+2. **Top 3 Signals** — what the data is telling us (good and bad)
+3. **Adoption Gap Analysis** — why are we at ${ini.adoption_rate}% vs 40% target?
+4. **Customer Sentiment Themes** — what are users actually saying?
+5. **Next 30-Day Recommendations** — 3 specific actions to improve metrics
+
+Be direct, data-driven, and opinionated.`;
+      break;
+    }
+
+    case "outcome_summary": {
+      const ini = payload.ini || {};
+      const okr = payload.okr || null;
+      userContent = `You are a Chief Product Officer writing the final retrospective for a completed product initiative. This will be shared with the executive team.
+
+Initiative: ${ini.title} (${ini.slug})
+Original Problem: ${ini.problem || ""}
+Opportunity: ${ini.opportunity || ""}
+Linked OKR: ${okr ? `${okr.objective} — ${okr.description || ""}` : "No OKR linked"}
+
+FINAL OUTCOMES:
+- Adoption Rate: ${ini.adoption_rate}%
+- Monthly Active Users: ${Number(ini.monthly_active_users||0).toLocaleString()}
+- NPS: ${ini.nps_score}
+- CSAT: ${ini.csat_score}/5.0
+- Call Deflection: ${ini.call_deflection_pct}%
+- Revenue Realized: $${Number(ini.revenue_realized||0).toLocaleString()}
+- Cost Savings: $${Number(ini.cost_savings_realized||0).toLocaleString()}
+- Target Met: ${ini.target_met ? "YES" : "NO"}
+
+LESSONS LEARNED: ${ini.lessons_learned || "Not captured"}
+NEXT ACTION: ${ini.next_action || "iterate"}
+
+Write a compelling executive narrative with these sections:
+1. **What We Set Out to Do** — the original vision in 2-3 sentences
+2. **What We Built and Delivered** — key capabilities shipped
+3. **Did We Win?** — honest verdict on business and customer outcomes vs targets
+4. **What We Learned** — top 3 lessons for the next initiative
+5. **The Road Ahead** — recommendation: ${ini.next_action || "iterate"} — and why
+
+Tone: Executive-ready. Confident but honest. 400-500 words.`;
+      break;
+    }
+
     default:
       userContent = question || payload.prompt || "";
   }

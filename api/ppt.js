@@ -424,6 +424,161 @@ async function buildLeadership(sql, org) {
   return pres;
 }
 
+// ─── STAGE 8: MEASURE ────────────────────────────────────────
+async function buildMeasure(sql, org) {
+  const initiatives = await sql`SELECT * FROM initiatives ORDER BY created_at ASC`;
+  const metricsAll  = await sql`SELECT * FROM initiative_metrics ORDER BY initiative_id, metric_date ASC`;
+  const pres = makePres(`${org.name} — Stage 8: Measure`);
+  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  addCover(pres, "Stage 8: Measure", "Post-launch adoption, customer feedback & business outcomes", today);
+  addSection(pres, "Measure — Stage 8", "Post-Launch Performance Dashboard");
+
+  for (const ini of initiatives) {
+    if (!ini.launch_date && !ini.monthly_active_users) continue;
+    const iniMetrics = metricsAll.filter(m => m.initiative_id === ini.id);
+    const slide = pres.addSlide();
+
+    slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:7.5, fill:{color:B.navyDk} });
+    slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.12, h:7.5, fill:{color:B.gold} });
+    slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:1.1, fill:{color:"1B3A6B"} });
+
+    slide.addText(ini.slug, { x:0.25, y:0.15, w:2, h:0.35, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+    slide.addText(ini.title, { x:0.25, y:0.45, w:9, h:0.5, fontSize:18, bold:true, color:B.white });
+    const launchStr = ini.launch_date ? `Launched ${new Date(ini.launch_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}` : "Pre-launch";
+    slide.addText(launchStr, { x:0.25, y:0.85, w:4, h:0.22, fontSize:9, color:B.muted });
+    if (ini.target_met) {
+      slide.addShape(pres.ShapeType.rect, { x:10, y:0.25, w:2.8, h:0.55, fill:{color:"1A4731"}, line:{color:"2ECC71",width:1}, rounding:0.08 });
+      slide.addText("✓ TARGET MET", { x:10, y:0.25, w:2.8, h:0.55, fontSize:10, bold:true, color:"2ECC71", align:"center", valign:"middle" });
+    }
+
+    const kpis = [
+      { label:"Adoption Rate", value:`${ini.adoption_rate||0}%`, note:"Target: 40%", color:Number(ini.adoption_rate||0)>=40?B.green:Number(ini.adoption_rate||0)>=20?B.amber:B.red },
+      { label:"Monthly Active", value:Number(ini.monthly_active_users||0).toLocaleString(), note:"MAU", color:B.offWhite },
+      { label:"Daily Active",   value:Number(ini.daily_active_users||0).toLocaleString(),   note:"DAU", color:B.offWhite },
+      { label:"Feature Util.",  value:`${ini.feature_utilization||0}%`, note:"of MAU using core", color:B.offWhite },
+    ];
+    kpis.forEach((k,i) => {
+      const x = 0.25 + i*3.2;
+      slide.addShape(pres.ShapeType.rect, { x, y:1.25, w:3, h:1.4, fill:{color:"1C2640"}, rounding:0.1 });
+      slide.addText(k.label.toUpperCase(), { x, y:1.3, w:3, h:0.25, fontSize:8, color:B.muted, align:"center", charSpacing:1 });
+      slide.addText(k.value, { x, y:1.6, w:3, h:0.7, fontSize:26, bold:true, color:k.color, align:"center", valign:"middle" });
+      slide.addText(k.note, { x, y:2.35, w:3, h:0.22, fontSize:9, color:B.muted, align:"center" });
+    });
+
+    const fb = [
+      { label:"NPS Score", value:ini.nps_score||0, note:"Insurance avg: 22", color:Number(ini.nps_score||0)>=40?B.green:Number(ini.nps_score||0)>=20?B.amber:B.red },
+      { label:"CSAT Score", value:`${ini.csat_score||0}/5`, note:`${ini.survey_responses||0} responses`, color:Number(ini.csat_score||0)>=4?B.green:Number(ini.csat_score||0)>=3?B.amber:B.red },
+      { label:"Call Deflection", value:`${ini.call_deflection_pct||0}%`, note:"vs pre-launch baseline", color:B.offWhite },
+    ];
+    fb.forEach((k,i) => {
+      const x = 0.25 + i*4.3;
+      slide.addShape(pres.ShapeType.rect, { x, y:2.85, w:4, h:1.2, fill:{color:"1C2640"}, rounding:0.1 });
+      slide.addText(k.label.toUpperCase(), { x, y:2.9, w:4, h:0.25, fontSize:8, color:B.muted, align:"center", charSpacing:1 });
+      slide.addText(String(k.value), { x, y:3.15, w:4, h:0.55, fontSize:22, bold:true, color:k.color, align:"center", valign:"middle" });
+      slide.addText(k.note, { x, y:3.72, w:4, h:0.2, fontSize:9, color:B.muted, align:"center" });
+    });
+
+    slide.addText("BUSINESS OUTCOMES", { x:0.25, y:4.2, w:6, h:0.25, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+    slide.addText(`Revenue Realized: $${Number(ini.revenue_realized||0).toLocaleString()}   |   Cost Savings: $${Number(ini.cost_savings_realized||0).toLocaleString()}`, { x:0.25, y:4.5, w:9, h:0.3, fontSize:12, color:B.white });
+
+    if (ini.key_verbatims && ini.key_verbatims.length) {
+      slide.addText("KEY CUSTOMER VERBATIMS", { x:0.25, y:4.9, w:12, h:0.25, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+      ini.key_verbatims.slice(0,3).forEach((v,i) => {
+        slide.addShape(pres.ShapeType.rect, { x:0.25, y:5.2+i*0.55, w:0.04, h:0.35, fill:{color:B.gold} });
+        slide.addText(`"${v.length>90?v.slice(0,90)+"…":v}"`, { x:0.45, y:5.2+i*0.55, w:12.4, h:0.45, fontSize:10, color:B.offWhite, italic:true });
+      });
+    }
+    if (ini.measure_notes) {
+      slide.addText(`PM NOTES: ${ini.measure_notes.slice(0,150)}${ini.measure_notes.length>150?"…":""}`, { x:0.25, y:7.0, w:12.8, h:0.35, fontSize:9, color:B.muted, italic:true });
+    }
+  }
+  return pres;
+}
+
+// ─── STAGE 9: OUTCOME SUMMARY ──────────────────────────────────
+async function buildOutcome(sql, org) {
+  const initiatives = await sql`SELECT * FROM initiatives ORDER BY created_at ASC`;
+  const okrs        = await sql`SELECT * FROM okrs WHERE org_id=${org.id} ORDER BY created_at ASC`;
+  const pres = makePres(`${org.name} — Stage 9: Outcome Summary`);
+  const today = new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
+
+  addCover(pres, "Stage 9: Outcome Summary", "The full story — from idea to outcome", today);
+  addSection(pres, "Outcome Summary — Stage 9", "Post-Launch Retrospective & Executive Narrative");
+
+  for (const ini of initiatives) {
+    const okr = okrs.find(o => o.id === ini.okr_id);
+    const pivotTotal = ini.pivot ? Object.values(ini.pivot).reduce((a,b)=>a+Number(b||0),0)*4 : null;
+    const adoptionScore = Math.min(5,(ini.adoption_rate||0)/8);
+    const npsScore = Math.min(5,((ini.nps_score||0)+100)/40);
+    const bizScore = ini.target_met ? 5 : 2.5;
+    const actualTotal = ((adoptionScore+npsScore+bizScore)/3)*20;
+    const delta = pivotTotal !== null ? actualTotal - pivotTotal : null;
+    const deltaColor = delta===null?B.muted:delta>=0?B.green:B.red;
+    const nextColors = { iterate:B.amber, expand:B.green, sunset:B.red, archive:B.muted };
+    const nextColor = nextColors[ini.next_action] || B.muted;
+
+    const slide = pres.addSlide();
+    slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:7.5, fill:{color:B.navyDk} });
+    slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.12, h:7.5, fill:{color:B.gold} });
+    slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:1.1, fill:{color:"1B3A6B"} });
+    slide.addText(ini.slug, { x:0.25, y:0.15, w:2, h:0.35, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+    slide.addText(ini.title, { x:0.25, y:0.45, w:9, h:0.5, fontSize:18, bold:true, color:B.white });
+    slide.addShape(pres.ShapeType.rect, { x:9.8, y:0.2, w:3, h:0.65, fill:{color:nextColor+"33"}, line:{color:nextColor,width:1}, rounding:0.08 });
+    slide.addText(`→ ${(ini.next_action||"ITERATE").toUpperCase()}`, { x:9.8, y:0.2, w:3, h:0.65, fontSize:12, bold:true, color:nextColor, align:"center", valign:"middle" });
+
+    [
+      { label:"PIVOT™ Predicted", value:pivotTotal!==null?pivotTotal.toFixed(0):"N/A", note:"Pre-investment score", color:B.gold },
+      { label:"Actual Outcome",   value:actualTotal.toFixed(0), note:"Post-launch composite", color:B.offWhite },
+      { label:"Prediction Accuracy", value:delta!==null?`${delta>=0?"+":""}${delta.toFixed(0)}`:"N/A", note:"vs PIVOT prediction", color:deltaColor },
+    ].forEach((k,i) => {
+      const x = 0.25 + i*4.3;
+      slide.addShape(pres.ShapeType.rect, { x, y:1.25, w:4, h:1.3, fill:{color:"1C2640"}, rounding:0.1 });
+      slide.addText(k.label.toUpperCase(), { x, y:1.3, w:4, h:0.25, fontSize:8, color:B.muted, align:"center", charSpacing:1 });
+      slide.addText(k.value, { x, y:1.6, w:4, h:0.65, fontSize:30, bold:true, color:k.color, align:"center", valign:"middle" });
+      slide.addText(k.note, { x, y:2.3, w:4, h:0.2, fontSize:9, color:B.muted, align:"center" });
+    });
+
+    if (okr) {
+      const strength = ini.target_met?"Achieved":(ini.adoption_rate||0)>=20?"Partial":"Below Target";
+      const sc = ini.target_met?B.green:(ini.adoption_rate||0)>=20?B.amber:B.red;
+      slide.addText("LINKED OKR", { x:0.25, y:2.75, w:3, h:0.25, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+      slide.addShape(pres.ShapeType.rect, { x:0.25, y:3.0, w:12.8, h:0.7, fill:{color:"1C2640"}, rounding:0.08 });
+      slide.addText(okr.objective||okr.title||"", { x:0.4, y:3.05, w:10, h:0.6, fontSize:12, color:B.white, valign:"middle" });
+      slide.addShape(pres.ShapeType.rect, { x:11, y:3.12, w:1.9, h:0.45, fill:{color:sc+"33"}, line:{color:sc,width:1}, rounding:0.07 });
+      slide.addText(strength, { x:11, y:3.12, w:1.9, h:0.45, fontSize:9, bold:true, color:sc, align:"center", valign:"middle" });
+    }
+
+    const outcomes = [
+      ["Adoption Rate", `${ini.adoption_rate||0}%`], ["MAU", Number(ini.monthly_active_users||0).toLocaleString()],
+      ["NPS", String(ini.nps_score||0)], ["CSAT", `${ini.csat_score||0}/5`],
+      ["Revenue", `$${Number(ini.revenue_realized||0).toLocaleString()}`], ["Cost Savings", `$${Number(ini.cost_savings_realized||0).toLocaleString()}`],
+    ];
+    slide.addText("FINAL OUTCOMES", { x:0.25, y:3.85, w:5, h:0.25, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+    outcomes.forEach(([label,value],i) => {
+      const x = 0.25 + (i%3)*4.3, y = 4.1 + Math.floor(i/3)*0.6;
+      slide.addText(`${label}: `, { x, y, w:2, h:0.4, fontSize:11, color:B.muted });
+      slide.addText(value, { x:x+1.5, y, w:2.5, h:0.4, fontSize:11, bold:true, color:B.white });
+    });
+
+    if (ini.lessons_learned) {
+      slide.addText("LESSONS LEARNED", { x:0.25, y:5.4, w:5, h:0.25, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+      slide.addText(ini.lessons_learned.slice(0,260)+(ini.lessons_learned.length>260?"…":""), { x:0.25, y:5.65, w:12.8, h:1.5, fontSize:10, color:B.offWhite, lineSpacingMultiple:1.4, valign:"top" });
+    }
+
+    if (ini.outcome_summary) {
+      const slide2 = pres.addSlide();
+      slide2.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:7.5, fill:{color:B.navyDk} });
+      slide2.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.12, h:7.5, fill:{color:B.gold} });
+      slide2.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:1.0, fill:{color:"1B3A6B"} });
+      slide2.addText(`${ini.slug} · ${ini.title}`, { x:0.25, y:0.15, w:10, h:0.35, fontSize:12, color:B.white, bold:true });
+      slide2.addText("EXECUTIVE OUTCOME NARRATIVE", { x:0.25, y:0.6, w:7, h:0.28, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+      slide2.addText(ini.outcome_summary.slice(0,900)+(ini.outcome_summary.length>900?"…":""), { x:0.25, y:1.15, w:12.8, h:6.0, fontSize:11, color:B.offWhite, lineSpacingMultiple:1.5, valign:"top", wrap:true });
+    }
+  }
+  return pres;
+}
+
 // ─── Page router ──────────────────────────────────────────────
 const PAGE_MAP = {
   dashboard:  { builder: buildDashboard,    filename: "PGOS_Dashboard.pptx" },
@@ -436,6 +591,8 @@ const PAGE_MAP = {
   delivery:   { builder: buildDelivery,     filename: "PGOS_PIPlanning.pptx" },
   competitors:{ builder: buildCompetitors,  filename: "PGOS_CompetitiveAnalysis.pptx" },
   leadership: { builder: buildLeadership,   filename: "PGOS_Leadership_Overview.pptx" },
+  measure:    { builder: buildMeasure,       filename: "PGOS_Measure_Stage8.pptx" },
+  outcome:    { builder: buildOutcome,       filename: "PGOS_Outcome_Stage9.pptx" },
 };
 
 // ─── Handler ──────────────────────────────────────────────────

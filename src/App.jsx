@@ -6,6 +6,8 @@ import { Dashboard } from "./pages/Dashboard";
 import { Foundation } from "./pages/Foundation";
 import { Ideas, InitiativeDetail } from "./pages/InitiativeDetail";
 import { Portfolio, PIPlanning, Handoff, StageList, Chatty } from "./pages/Portfolio";
+import Measure from "./pages/Measure";
+import OutcomeSummary from "./pages/OutcomeSummary";
 import { RefFramework, RefGuide } from "./pages/References";
 import { T, css, stageLabel, stageColor } from "./lib/tokens";
 
@@ -99,6 +101,8 @@ function Inner() {
     if (view === "portfolio")    return <Portfolio />;
     if (view === "delivery")     return <PIPlanning />;
     if (view === "handoff")      return <Handoff />;
+    if (view === "measure")      return <Measure />;
+    if (view === "outcome")      return <OutcomeSummary />;
     if (view === "ref_framework") return <RefFramework setView={setView} />;
     if (view === "ref_guide")    return <RefGuide setView={setView} />;
     if (activeIni)               return <InitiativeDetail ini={activeIni} setView={setView} />;
@@ -133,7 +137,8 @@ function Inner() {
               ideas: "Ideas · Stage 1", discovery: "Discovery · Stage 2",
               execreview: "Executive Review · Stage 3", portfolio: "Portfolio · Stage 4",
               definition: "Product Definition · Stage 5", delivery: "Delivery · Stage 6",
-              handoff: "Handoff · Stage 7", ref_framework: "NCM PM Framework",
+              handoff: "Handoff · Stage 7", measure: "Measure · Stage 8",
+              outcome: "Outcome Summary · Stage 9", ref_framework: "NCM PM Framework",
               ref_guide: "How To Use PGOS",
             }[view] || view)}
           </span>

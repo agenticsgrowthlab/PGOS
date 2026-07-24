@@ -78,6 +78,8 @@ export function Sidebar({ view, setView }) {
         {navBtn("definition", "Stage 5 · Definition")}
         {navBtn("delivery",   "Stage 6 · Delivery")}
         {navBtn("handoff",    "Stage 7 · Handoff")}
+        {navBtn("measure",    "Stage 8 · Measure")}
+        {navBtn("outcome",    "Stage 9 · Outcome Summary")}
 
         {sep("s2")}
 

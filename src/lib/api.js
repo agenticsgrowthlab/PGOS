@@ -86,6 +86,11 @@ export const createCompetitor     = (payload) => data("competitors", "create", p
 export const updateCompetitor     = (payload) => data("competitors", "update", payload);
 export const deleteCompetitor     = (id)      => data("competitors", "delete", { id });
 
+// Initiative Metrics (time-series)
+export const listMetrics          = (initiative_id) => data("metrics", "list", { initiative_id });
+export const createMetric         = (payload)       => data("metrics", "create", payload);
+export const deleteMetric         = (id)            => data("metrics", "delete", { id });
+
 // ─── File upload ──────────────────────────────────────────────
 export async function uploadFile(file, org_id) {
   const formData = new FormData();
