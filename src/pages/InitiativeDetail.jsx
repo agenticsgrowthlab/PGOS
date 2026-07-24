@@ -24,11 +24,11 @@ const ADVICE = {
 };
 
 const PIVOT_DEFS = [
-  ["Potential Value",      "p", T.steel, "25%"],
-  ["Intelligence Strength","i", T.ice,   "20%"],
-  ["Velocity Risk",        "v", T.gold,  "15%"],
-  ["Outcome Clarity",      "o", T.green, "20%"],
-  ["Throughput Cost",      "t", T.amber, "20%"],
+  ["Potential",  "p", T.steel, "25%"],
+  ["Innovation", "i", T.ice,   "20%"],
+  ["Value",      "v", T.gold,  "15%"],
+  ["Opportunity","o", T.green, "20%"],
+  ["Timing",     "t", T.amber, "20%"],
 ];
 
 // ─── Initiative Detail ────────────────────────────────────────
@@ -144,6 +144,27 @@ export function InitiativeDetail({ ini, setView }) {
           </select>
         </div>
       </div>
+
+      {/* Approval bar — always visible when at review stage or beyond */}
+      {(ini.stage === "review" || ini.stage === "approved" || ini.stage === "definition" || ini.stage === "delivery" || ini.stage === "handoff") && (
+        <div style={{ ...css.card, borderColor: ini.approved ? T.green : T.gold, background: ini.approved ? "rgba(34,197,94,0.08)" : "rgba(212,168,67,0.06)", marginBottom: 16 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!ini.approved}
+              onChange={e => setIni(d => ({ ...d, approved: e.target.checked, stage: e.target.checked ? "approved" : "review", approved_by: "Portfolio Review Board", approved_date: new Date().toLocaleDateString() }))}
+              style={{ width: 22, height: 22, accentColor: T.green, cursor: "pointer", flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: ini.approved ? T.green : T.gold }}>
+                {ini.approved ? "✓ Approved for Investment — advancing to Product Definition" : "Approve for Investment — advance to Product Definition"}
+              </div>
+              <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
+                {ini.approved
+                  ? `Approved${ini.approved_date ? " · " + ini.approved_date : ""}${ini.approved_by ? " · " + ini.approved_by : ""}`
+                  : "Check this box once leadership approves the investment decision. Initiative advances to Stage 4 Portfolio."}
+              </div>
+            </div>
+          </label>
+        </div>
+      )}
 
       {/* Tab nav */}
       <div style={{ display: "flex", gap: 0, background: T.ink3, borderRadius: 8, padding: 3, marginBottom: 16, flexWrap: "wrap" }}>
