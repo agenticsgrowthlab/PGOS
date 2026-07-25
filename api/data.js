@@ -499,36 +499,36 @@ async function handleInitiatives(sql, action, payload) {
       try {
         await sql`
           UPDATE initiatives SET
-            roadmap_start = ${r.roadmap_start || null},
-            roadmap_end   = ${r.roadmap_end || null},
-            bar_color     = ${str(r.bar_color)}
+            roadmap_start = COALESCE(${r.roadmap_start || null}::date, roadmap_start),
+            roadmap_end   = COALESCE(${r.roadmap_end || null}::date,   roadmap_end),
+            bar_color     = COALESCE(${str(r.bar_color)}::text,        bar_color)
           WHERE id = ${id}
         `;
-      } catch (e) { /* roadmap migration not run yet */ }
+      } catch (e) { console.error('[roadmap]', e.message); }
 
       try {
         await sql`
           UPDATE initiatives SET
-            launch_date           = ${r.launch_date || null},
-            adoption_rate         = ${num(r.adoption_rate)},
-            monthly_active_users  = ${num(r.monthly_active_users)},
-            daily_active_users    = ${num(r.daily_active_users)},
-            feature_utilization   = ${num(r.feature_utilization)},
-            nps_score             = ${num(r.nps_score)},
-            csat_score            = ${num(r.csat_score)},
-            survey_responses      = ${num(r.survey_responses)},
-            key_verbatims         = ${r.key_verbatims || null},
-            call_deflection_pct   = ${num(r.call_deflection_pct)},
-            revenue_realized      = ${num(r.revenue_realized)},
-            cost_savings_realized = ${num(r.cost_savings_realized)},
-            target_met            = ${typeof r.target_met === "boolean" ? r.target_met : null},
-            measure_notes         = ${str(r.measure_notes)},
-            lessons_learned       = ${str(r.lessons_learned)},
-            next_action           = ${str(r.next_action)},
-            outcome_summary       = ${str(r.outcome_summary)}
+            launch_date           = COALESCE(${r.launch_date || null}::date,          launch_date),
+            adoption_rate         = COALESCE(${num(r.adoption_rate)}::numeric,        adoption_rate),
+            monthly_active_users  = COALESCE(${num(r.monthly_active_users)}::integer, monthly_active_users),
+            daily_active_users    = COALESCE(${num(r.daily_active_users)}::integer,   daily_active_users),
+            feature_utilization   = COALESCE(${num(r.feature_utilization)}::numeric,  feature_utilization),
+            nps_score             = COALESCE(${num(r.nps_score)}::integer,            nps_score),
+            csat_score            = COALESCE(${num(r.csat_score)}::numeric,           csat_score),
+            survey_responses      = COALESCE(${num(r.survey_responses)}::integer,     survey_responses),
+            key_verbatims         = COALESCE(${r.key_verbatims || null}::text[],      key_verbatims),
+            call_deflection_pct   = COALESCE(${num(r.call_deflection_pct)}::numeric,  call_deflection_pct),
+            revenue_realized      = COALESCE(${num(r.revenue_realized)}::numeric,     revenue_realized),
+            cost_savings_realized = COALESCE(${num(r.cost_savings_realized)}::numeric, cost_savings_realized),
+            target_met            = COALESCE(${typeof r.target_met === "boolean" ? r.target_met : null}::boolean, target_met),
+            measure_notes         = COALESCE(${str(r.measure_notes)}::text,           measure_notes),
+            lessons_learned       = COALESCE(${str(r.lessons_learned)}::text,         lessons_learned),
+            next_action           = COALESCE(${str(r.next_action)}::text,             next_action),
+            outcome_summary       = COALESCE(${str(r.outcome_summary)}::text,         outcome_summary)
           WHERE id = ${id}
         `;
-      } catch (e) { /* measure migration not run yet */ }
+      } catch (e) { console.error('[measure]', e.message); }
 
       try {
         await sql`
