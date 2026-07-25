@@ -2,7 +2,7 @@ import { useState } from "react";
 import { T, css, calcPivot, pivotTier, stageLabel, stageColor } from "../lib/tokens";
 import { AIBox, Tag, ScoreRing, PivotSlider, AddNoteInput } from "../components/ui";
 import { useApp } from "../contexts/AppContext";
-import { callAI, createNote } from "../lib/api";
+import { callAI, createNote, updateInitiative } from "../lib/api";
 
 const SOURCES = ["Executive Idea","Customer Request","Competitive Threat","Regulatory Requirement","Market Opportunity","Engineering Recommendation","Data Insight","Partner Request"];
 
@@ -149,7 +149,13 @@ export function InitiativeDetail({ ini, setView }) {
       <div style={{ ...css.card, borderColor: ini.approved ? T.green : T.gold, background: ini.approved ? "rgba(34,197,94,0.08)" : "rgba(212,168,67,0.06)", marginBottom: 16 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
           <input type="checkbox" checked={!!ini.approved}
-            onChange={e => setIni(d => ({ ...d, approved: e.target.checked, stage: e.target.checked ? "approved" : (d.stage === "approved" ? "review" : d.stage), approved_by: "Portfolio Review Board", approved_date: new Date().toLocaleDateString() }))}
+            onChange={async e => {
+              const checked = e.target.checked;
+              const newStage = checked ? "approved" : (ini.stage === "approved" ? "review" : ini.stage);
+              const approvedDate = new Date().toLocaleDateString();
+              setIni(d => ({ ...d, approved: checked, stage: newStage, approved_by: "Portfolio Review Board", approved_date: approvedDate }));
+              await updateInitiative({ id: ini.id, approved: checked, stage: newStage, approved_by: "Portfolio Review Board", approved_date: approvedDate });
+            }}
             style={{ width: 22, height: 22, accentColor: T.green, cursor: "pointer", flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: ini.approved ? T.green : T.gold }}>
@@ -316,7 +322,13 @@ export function InitiativeDetail({ ini, setView }) {
           <div style={{ ...css.card, borderColor: ini.approved ? T.green : T.border, background: ini.approved ? T.grnD : T.ink2 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
               <input type="checkbox" checked={!!ini.approved}
-                onChange={e => setIni(d => ({ ...d, approved: e.target.checked, stage: e.target.checked ? "approved" : d.stage, approved_by: "Portfolio Review Board", approved_date: new Date().toLocaleDateString() }))}
+                onChange={async e => {
+                  const checked = e.target.checked;
+                  const newStage = checked ? "approved" : ini.stage;
+                  const approvedDate = new Date().toLocaleDateString();
+                  setIni(d => ({ ...d, approved: checked, stage: newStage, approved_by: "Portfolio Review Board", approved_date: approvedDate }));
+                  await updateInitiative({ id: ini.id, approved: checked, stage: newStage, approved_by: "Portfolio Review Board", approved_date: approvedDate });
+                }}
                 style={{ width: 20, height: 20, accentColor: T.green, cursor: "pointer" }} />
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: ini.approved ? T.green : T.loud }}>{ini.approved ? "✓ Approved for Product Definition" : "Mark Approved — Advance to Definition"}</div>
