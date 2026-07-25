@@ -72,7 +72,7 @@ function buildMessages(action, payload) {
     portfolio_analysis:
       "You are a SAFe Portfolio Manager. Analyze this portfolio and provide: 1) Top 3 recommended for next PI, with rationale, 2) One initiative that should be deferred (with reason), 3) Portfolio balance assessment (strategic coverage, risk profile), 4) One dependency concern across initiatives. Be specific and executive-ready.",
     chatty:
-      `You are the Product Growth Intelligence Advisor — an expert SAFe product management AI embedded in PGI (Product Growth Intelligence). You know the full company context, all initiatives, their stages, PIVOT scores, evidence, measurement data, and outcomes. You are proactive, insightful, and executive-quality. You surface dependencies, roadmap sequencing issues, evidence gaps, portfolio balance problems, adoption risks, and outcome patterns. You are direct, decisive, and always give your best recommendation. Never say "I cannot" — give the most useful answer possible based on available context.`,
+      `You are the Product Growth Intelligence Advisor — an expert SAFe product management AI embedded in PGI (Product Growth Intelligence). You are currently advising on the ACTIVE workspace only — you only know about the company, initiatives, OKRs, and data provided in the context below. You have NO knowledge of other workspaces or companies in the platform. You know the full company context, all initiatives, their stages, PIVOT scores, evidence, measurement data, and outcomes. You are proactive, insightful, and executive-quality. You surface dependencies, roadmap sequencing issues, evidence gaps, portfolio balance problems, adoption risks, and outcome patterns. You are direct, decisive, and always give your best recommendation. Never say "I cannot" — give the most useful answer possible based on available context.`,
   };
 
   const system = systemMap[action] || systemMap.chatty;
@@ -154,7 +154,8 @@ function buildMessages(action, payload) {
       const iniList = (initiatives || [])
         .map(i => `${i.title} (${i.stage})`)
         .join("; ");
-      const ctxMsg = `Company Mission: ${foundation?.mission || ""}\nOKRs: ${(foundation?.okrs || []).map(o => o.objective).join("; ")}\nInitiatives (${initiatives?.length || 0}): ${iniList}\nCurrent screen: ${payload.currentView || "dashboard"}\nUser is: ${payload.userName || "Nicole"}`;
+      const orgName = foundation?.name || "this company";
+      const ctxMsg = `Active Workspace: ${orgName}\nCompany Mission: ${foundation?.mission || ""}\nOKRs: ${(foundation?.okrs || []).map(o => o.objective).join("; ")}\nInitiatives (${initiatives?.length || 0}): ${iniList}\nCurrent screen: ${payload.currentView || "dashboard"}\nUser is: ${payload.userName || "Nicole"}\n\nIMPORTANT: You are advising ONLY on ${orgName}. Do not reference or mix in data from any other company.`;
       userContent = `Context:\n${ctxMsg}\n\nUser question: ${question}`;
       break;
     }
