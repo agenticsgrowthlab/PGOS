@@ -19,33 +19,59 @@ function getDb() {
 
 // ─── ORGANIZATION ──────────────────────────────────────────────
 async function handleOrganization(sql, action, payload) {
+  // Helper: load full foundation data for a given org row
+  async function loadFullOrg(org) {
+    const [okrs, themes, caps, prods, assets, prefs, comps] = await Promise.all([
+      sql`SELECT * FROM okrs WHERE org_id=${org.id} ORDER BY sort_order`,
+      sql`SELECT * FROM strategic_themes WHERE org_id=${org.id} ORDER BY sort_order`,
+      sql`SELECT * FROM capabilities WHERE org_id=${org.id} ORDER BY sort_order`,
+      sql`SELECT * FROM products WHERE org_id=${org.id} ORDER BY sort_order`,
+      sql`SELECT * FROM architecture_assets WHERE org_id=${org.id} ORDER BY uploaded_at`,
+      sql`SELECT * FROM user_preferences WHERE org_id=${org.id} LIMIT 1`,
+      sql`SELECT * FROM competitors WHERE org_id=${org.id} ORDER BY sort_order`,
+    ]);
+    return {
+      ...org,
+      okrs,
+      strategies: themes,
+      capabilities: caps,
+      products: prods,
+      architecture: assets,
+      preferences: prefs[0] || { user_name: "Nicole" },
+      competitors: comps,
+    };
+  }
+
   switch (action) {
+    // Legacy: get first org (kept for backward compat)
     case "get": {
       const rows = await sql`SELECT * FROM organization LIMIT 1`;
       if (!rows.length) return { data: null };
-      const org = rows[0];
-      // Attach nested data for a full foundation load in one call
-      const [okrs, themes, caps, prods, assets, prefs, comps] = await Promise.all([
-        sql`SELECT * FROM okrs WHERE org_id=${org.id} ORDER BY sort_order`,
-        sql`SELECT * FROM strategic_themes WHERE org_id=${org.id} ORDER BY sort_order`,
-        sql`SELECT * FROM capabilities WHERE org_id=${org.id} ORDER BY sort_order`,
-        sql`SELECT * FROM products WHERE org_id=${org.id} ORDER BY sort_order`,
-        sql`SELECT * FROM architecture_assets WHERE org_id=${org.id} ORDER BY uploaded_at`,
-        sql`SELECT * FROM user_preferences WHERE org_id=${org.id} LIMIT 1`,
-        sql`SELECT * FROM competitors WHERE org_id=${org.id} ORDER BY sort_order`,
-      ]);
-      return {
-        data: {
-          ...org,
-          okrs,
-          strategies: themes,
-          capabilities: caps,
-          products: prods,
-          architecture: assets,
-          preferences: prefs[0] || { user_name: "Nicole" },
-          competitors: comps,
-        },
-      };
+      return { data: await loadFullOrg(rows[0]) };
+    }
+
+    // Get by specific org id
+    case "get_by_id": {
+      const rows = await sql`SELECT * FROM organization WHERE id=${payload.org_id}`;
+      if (!rows.length) return { data: null };
+      return { data: await loadFullOrg(rows[0]) };
+    }
+
+    // List all orgs (lightweight — no nested data)
+    case "list": {
+      const rows = await sql`SELECT id, name, mission, created_at FROM organization ORDER BY created_at ASC`;
+      return { data: rows };
+    }
+
+    // Create a new blank org
+    case "create": {
+      const { name } = payload;
+      const rows = await sql`
+        INSERT INTO organization (name, mission, vision, values)
+        VALUES (${name || "New Organization"}, '', '', '{}')
+        RETURNING *
+      `;
+      return { data: rows[0] };
     }
 
     case "update": {

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import {
-  getFoundation, updateOrg, checkSeedStatus,
+  getFoundation, getFoundationById, listOrgs, createOrg,
+  updateOrg, checkSeedStatus,
   listInitiatives, updateInitiative, createInitiative,
   bulkUpdateOKRs, bulkUpdateThemes, bulkUpdateCaps,
   createOKR, deleteOKR, createTheme, deleteTheme,
@@ -28,11 +29,41 @@ export function AppProvider({ children }) {
   const [foundation, setFoundationState] = useState(null);
   const [initiatives, setInitiativesState] = useState([]);
   const [orgId, setOrgId] = useState(null);
+  const [orgs, setOrgs] = useState([]);           // all orgs (lightweight list)
   const [loading, setLoading] = useState(true);
+  const [switchingOrg, setSwitchingOrg] = useState(false);
   const [error, setError] = useState(null);
   const [userName, setUserName] = useState("Nicole");
   const [roadmapLastSaved, setRoadmapLastSaved] = useState(null);
   const [competitors, setCompetitors] = useState([]);
+
+  // ── Load full org data by id ─────────────────────────────────
+  const loadOrgData = useCallback(async (orgIdToLoad) => {
+    const [foundRes, inisRes] = await Promise.all([
+      getFoundationById(orgIdToLoad),
+      listInitiatives(orgIdToLoad),
+    ]);
+    const org = foundRes.data;
+    setOrgId(org.id);
+    setUserName(org.preferences?.user_name || "Nicole");
+    if (org.preferences?.preferences?.roadmap_last_saved) {
+      setRoadmapLastSaved(new Date(org.preferences.preferences.roadmap_last_saved));
+    }
+    setFoundationState({
+      id: org.id,
+      name: org.name,
+      mission: org.mission,
+      vision: org.vision,
+      values: org.values || [],
+      okrs: org.okrs || [],
+      strategies: org.strategies || [],
+      capabilities: org.capabilities || [],
+      products: org.products || [],
+      architecture: org.architecture || [],
+    });
+    setInitiativesState((inisRes.data || []).map(normalizeInitiative));
+    setCompetitors(org.competitors || []);
+  }, []);
 
   // ── Bootstrap: load everything on mount ────────────────────
   useEffect(() => {
@@ -45,31 +76,15 @@ export function AppProvider({ children }) {
           return;
         }
 
-        const [foundRes, inisRes] = await Promise.all([
-          getFoundation(),
-          listInitiatives(seedRes.data.org_id),
-        ]);
+        // Load all orgs (for switcher pills)
+        const orgsRes = await listOrgs();
+        const allOrgs = orgsRes.data || [];
+        setOrgs(allOrgs);
 
-        const org = foundRes.data;
-        setOrgId(org.id);
-        setUserName(org.preferences?.user_name || "Nicole");
-        if (org.preferences?.preferences?.roadmap_last_saved) {
-          setRoadmapLastSaved(new Date(org.preferences.preferences.roadmap_last_saved));
-        }
-        setFoundationState({
-          id: org.id,
-          name: org.name,
-          mission: org.mission,
-          vision: org.vision,
-          values: org.values || [],
-          okrs: org.okrs || [],
-          strategies: org.strategies || [],
-          capabilities: org.capabilities || [],
-          products: org.products || [],
-          architecture: org.architecture || [],
-        });
-        setInitiativesState((inisRes.data || []).map(normalizeInitiative));
-        setCompetitors(org.competitors || []);
+        // Load full data for first org
+        const firstOrgId = seedRes.data.org_id || allOrgs[0]?.id;
+        if (firstOrgId) await loadOrgData(firstOrgId);
+
       } catch (err) {
         console.error("Bootstrap error:", err);
         setError(err.message);
@@ -78,7 +93,30 @@ export function AppProvider({ children }) {
       }
     }
     bootstrap();
-  }, []);
+  }, [loadOrgData]);
+
+  // ── Switch org ───────────────────────────────────────────────
+  const switchOrg = useCallback(async (targetOrgId) => {
+    if (targetOrgId === orgId) return;
+    setSwitchingOrg(true);
+    try {
+      await loadOrgData(targetOrgId);
+    } catch (err) {
+      console.error("Switch org error:", err);
+    } finally {
+      setSwitchingOrg(false);
+    }
+  }, [orgId, loadOrgData]);
+
+  // ── Create new org ───────────────────────────────────────────
+  const addOrg = useCallback(async (name) => {
+    const res = await createOrg(name);
+    const newOrg = res.data;
+    setOrgs(prev => [...prev, { id: newOrg.id, name: newOrg.name, created_at: newOrg.created_at }]);
+    // Switch to it — it will be blank
+    await switchOrg(newOrg.id);
+    return newOrg;
+  }, [switchOrg]);
 
   // ── FOUNDATION: debounced org-level updates ─────────────────
   const persistOrg = useDebounce(async (updated) => {
@@ -283,6 +321,7 @@ export function AppProvider({ children }) {
   // ── Context value ────────────────────────────────────────────
   const value = {
     orgId, loading, error, userName,
+    orgs, switchOrg, addOrg, switchingOrg,
 
     // Foundation
     foundation, setFoundation,

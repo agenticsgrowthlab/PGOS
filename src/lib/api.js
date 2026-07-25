@@ -34,6 +34,9 @@ export function data(resource, action, payload = {}) {
 
 // Organization / Foundation
 export const getFoundation        = () => data("organization", "get");
+export const getFoundationById    = (org_id) => data("organization", "get_by_id", { org_id });
+export const listOrgs             = () => data("organization", "list");
+export const createOrg            = (name) => data("organization", "create", { name });
 export const updateOrg            = (payload) => data("organization", "update", payload);
 export const checkSeedStatus      = () => data("seed_status", "get");
 
