@@ -457,12 +457,22 @@ async function handleInitiatives(sql, action, payload) {
           risk_register    = COALESCE(${p.risk_register}, risk_register),
           pi_planning      = COALESCE(${p.pi_planning}, pi_planning),
           handoff_package  = COALESCE(${p.handoff_package}, handoff_package),
-          roadmap_start    = COALESCE(${p.roadmap_start || null}, roadmap_start),
-          roadmap_end      = COALESCE(${p.roadmap_end || null}, roadmap_end),
-          bar_color        = COALESCE(${p.bar_color || null}, bar_color)
         WHERE id = ${p.id}
         RETURNING *
       `;
+
+      // ── Roadmap update (migration-added columns) ──────────────
+      try {
+        await sql`
+          UPDATE initiatives SET
+            roadmap_start = COALESCE(${p.roadmap_start || null}, roadmap_start),
+            roadmap_end   = COALESCE(${p.roadmap_end || null}, roadmap_end),
+            bar_color     = COALESCE(${p.bar_color || null}, bar_color)
+          WHERE id = ${p.id}
+        `;
+      } catch (e) {
+        console.warn("Roadmap update skipped (run roadmap migration):", e.message);
+      }
 
       // ── Extended update (migration-added columns) ─────────────
       // Wrapped separately so missing columns don't break the core save
