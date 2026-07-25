@@ -407,7 +407,57 @@ async function handleInitiatives(sql, action, payload) {
     }
 
     case "update": {
-      const p = payload;
+      // Sanitize payload — extract only known scalar columns.
+      // Defensive against stale debounce snapshots and nested objects from frontend.
+      const raw = payload;
+      const p = {
+        id:               raw.id,
+        title:            typeof raw.title === "string" ? raw.title : undefined,
+        stage:            typeof raw.stage === "string" ? raw.stage : undefined,
+        source:           typeof raw.source === "string" ? raw.source : undefined,
+        source_detail:    typeof raw.source_detail === "string" ? raw.source_detail : undefined,
+        problem:          typeof raw.problem === "string" ? raw.problem : undefined,
+        opportunity:      typeof raw.opportunity === "string" ? raw.opportunity : undefined,
+        okr_id:           raw.okr_id !== undefined ? raw.okr_id : undefined,
+        theme_id:         raw.theme_id !== undefined ? raw.theme_id : undefined,
+        capability_id:    raw.capability_id !== undefined ? raw.capability_id : undefined,
+        pivot_p:          typeof raw.pivot_p === "number" ? raw.pivot_p : undefined,
+        pivot_i:          typeof raw.pivot_i === "number" ? raw.pivot_i : undefined,
+        pivot_v:          typeof raw.pivot_v === "number" ? raw.pivot_v : undefined,
+        pivot_o:          typeof raw.pivot_o === "number" ? raw.pivot_o : undefined,
+        pivot_t:          typeof raw.pivot_t === "number" ? raw.pivot_t : undefined,
+        evidence_interviews:     typeof raw.evidence_interviews === "string" ? raw.evidence_interviews : undefined,
+        evidence_pain_confirmed: typeof raw.evidence_pain_confirmed === "string" ? raw.evidence_pain_confirmed : undefined,
+        evidence_revenue_opp:    typeof raw.evidence_revenue_opp === "string" ? raw.evidence_revenue_opp : undefined,
+        evidence_cost_savings:   typeof raw.evidence_cost_savings === "string" ? raw.evidence_cost_savings : undefined,
+        evidence_competitive:    typeof raw.evidence_competitive === "string" ? raw.evidence_competitive : undefined,
+        evidence_nps:            typeof raw.evidence_nps === "string" ? raw.evidence_nps : undefined,
+        investment_requested:    typeof raw.investment_requested === "number" ? raw.investment_requested : undefined,
+        investment_approved:     typeof raw.investment_approved === "number" ? raw.investment_approved : undefined,
+        eng_teams:    typeof raw.eng_teams === "number" ? raw.eng_teams : undefined,
+        eng_sprints:  typeof raw.eng_sprints === "number" ? raw.eng_sprints : undefined,
+        eng_estimate: typeof raw.eng_estimate === "number" ? raw.eng_estimate : undefined,
+        approved:     typeof raw.approved === "boolean" ? raw.approved : undefined,
+        approved_by:  typeof raw.approved_by === "string" ? raw.approved_by : undefined,
+        approved_date: typeof raw.approved_date === "string" ? raw.approved_date : undefined,
+        wsjf_biz_value:      typeof raw.wsjf_biz_value === "number" ? raw.wsjf_biz_value : undefined,
+        wsjf_time_crit:      typeof raw.wsjf_time_crit === "number" ? raw.wsjf_time_crit : undefined,
+        wsjf_risk_reduction: typeof raw.wsjf_risk_reduction === "number" ? raw.wsjf_risk_reduction : undefined,
+        wsjf_effort:         typeof raw.wsjf_effort === "number" ? raw.wsjf_effort : undefined,
+        pivot_coach:     typeof raw.pivot_coach === "string" ? raw.pivot_coach : undefined,
+        eng_estimate_ai: typeof raw.eng_estimate_ai === "string" ? raw.eng_estimate_ai : undefined,
+        exec_brief:      typeof raw.exec_brief === "string" ? raw.exec_brief : undefined,
+        one_pager:       typeof raw.one_pager === "string" ? raw.one_pager : undefined,
+        personas:        typeof raw.personas === "string" ? raw.personas : undefined,
+        current_journey: typeof raw.current_journey === "string" ? raw.current_journey : undefined,
+        future_journey:  typeof raw.future_journey === "string" ? raw.future_journey : undefined,
+        jtbd:            typeof raw.jtbd === "string" ? raw.jtbd : undefined,
+        use_cases:       typeof raw.use_cases === "string" ? raw.use_cases : undefined,
+        epics:           typeof raw.epics === "string" ? raw.epics : undefined,
+        risk_register:   typeof raw.risk_register === "string" ? raw.risk_register : undefined,
+        pi_planning:     typeof raw.pi_planning === "string" ? raw.pi_planning : undefined,
+        handoff_package: typeof raw.handoff_package === "string" ? raw.handoff_package : undefined,
+      };
 
       // ── Core update (base schema columns — always exist) ──────
       const rows = await sql`
