@@ -4,7 +4,7 @@
   "installCommand": "npm install",
   "framework": "vite",
   "functions": {
-    "api/ai.js":     { "maxDuration": 60 },
+    "api/ai.js":     { "maxDuration": 300 },
     "api/data.js":   { "maxDuration": 30 },
     "api/upload.js": { "maxDuration": 60 }
   },
