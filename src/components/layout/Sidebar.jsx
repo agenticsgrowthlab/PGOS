@@ -189,7 +189,7 @@ export function Sidebar({ view, setView }) {
         {navBtn("execreview", "Stage 3 · Exec Review")}
         {navBtn("portfolio",  "Stage 4 · Portfolio")}
         {navBtn("definition",           "Stage 5 · Definition")}
-        {navBtn("investment_contract",  "Stage 5.5 · Investment Contract")}
+        {navBtn("investment_contract",  "Stage 5.5 · Delivery Readiness")}
         {navBtn("delivery",             "Stage 6 · Delivery")}
         {navBtn("handoff",    "Stage 7 · Handoff")}
         {navBtn("measure",    "Stage 8 · Measure")}

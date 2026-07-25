@@ -139,7 +139,7 @@ function Inner() {
               dashboard: "Dashboard", foundation: "Foundation",
               ideas: "Ideas · Stage 1", discovery: "Discovery · Stage 2",
               execreview: "Executive Review · Stage 3", portfolio: "Portfolio · Stage 4",
-              definition: "Product Definition · Stage 5", investment_contract: "Investment Contract · Stage 5.5", delivery: "Delivery · Stage 6",
+              definition: "Product Definition · Stage 5", investment_contract: "Delivery Readiness · Stage 5.5", delivery: "Delivery · Stage 6",
               handoff: "Handoff · Stage 7", measure: "Measure · Stage 8",
               outcome: "Outcome Summary · Stage 9", ref_framework: "NCM PM Framework",
               ref_guide: "How To Use PGI",

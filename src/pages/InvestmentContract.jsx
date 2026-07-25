@@ -159,7 +159,7 @@ export default function InvestmentContract() {
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ ...css.h2, marginBottom: 4 }}>
-          Investment Contract
+          Delivery Readiness
           {isConfirmed && (
             <span style={{ marginLeft: 12, fontSize: 11, fontWeight: 700,
               color: T.green, border: `1px solid ${T.green}`, borderRadius: 10,
@@ -169,7 +169,7 @@ export default function InvestmentContract() {
           )}
         </h1>
         <p style={css.sub}>
-          Define what success looks like before delivery begins. This contract becomes the measurement standard for Stage 8 · Measure.
+          Define what success looks like before delivery begins. AI generates your measurement contract from everything we know about this initiative.
         </p>
       </div>
 
