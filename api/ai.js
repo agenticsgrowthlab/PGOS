@@ -344,11 +344,17 @@ const TOKEN_MAP = {
 };
 
 // ─── Bootstrap company prompt ─────────────────────────────────
-function buildBootstrapPrompt(companyName, website) {
+function buildBootstrapPrompt(companyName, website, siteContent) {
   const siteRef = website ? ` at ${website}` : "";
-  const siteInstruction = website
-    ? `The company website is ${website} — use this as your primary source. Crawl it directly to get accurate mission, products, and positioning.`
-    : `Search the web to find accurate information about this company.`;
+
+  let siteInstruction;
+  if (siteContent) {
+    siteInstruction = `Here is the content fetched directly from ${website}. Use this as your PRIMARY source for mission, products, and positioning:\n\n---\n${siteContent}\n---\n\nAlso use your existing knowledge about ${companyName} to fill in competitors and market context.`;
+  } else if (website) {
+    siteInstruction = `The company website is ${website}. Use your knowledge about this company and website to populate the data accurately.`;
+  } else {
+    siteInstruction = `Use your knowledge to construct realistic and accurate data for this company.`;
+  }
 
   return {
     system: `You are a senior product intelligence analyst. Your job is to research a company and return structured JSON data that will be loaded into a product management platform. You must return ONLY valid JSON — no markdown, no explanation, no preamble. The JSON must exactly match the schema provided.
@@ -466,7 +472,46 @@ export default async function handler(req, res) {
       const { companyName, website } = payload;
       if (!companyName) return res.status(400).json({ error: "companyName required" });
 
-      const { system, userContent } = buildBootstrapPrompt(companyName, website);
+      // If website provided, fetch it directly — no web search needed
+      let siteContent = "";
+      if (website) {
+        try {
+          const siteUrl = website.startsWith("http") ? website : `https://${website}`;
+          console.log("Fetching website directly:", siteUrl);
+          const siteRes = await fetch(siteUrl, {
+            headers: { "User-Agent": "Mozilla/5.0 (compatible; PGI-Bootstrap/1.0)" },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (siteRes.ok) {
+            const html = await siteRes.text();
+            // Strip HTML tags, collapse whitespace, limit to 8000 chars
+            siteContent = html
+              .replace(/<script[\s\S]*?<\/script>/gi, "")
+              .replace(/<style[\s\S]*?<\/style>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 8000);
+            console.log("Site fetched, content length:", siteContent.length);
+          }
+        } catch (e) {
+          console.warn("Site fetch failed, falling back to AI knowledge:", e.message);
+        }
+      }
+
+      const { system, userContent } = buildBootstrapPrompt(companyName, website, siteContent);
+
+      // Only use web search if we have no website or fetch failed
+      const useWebSearch = !siteContent;
+      const requestBody = {
+        model: MODEL,
+        max_tokens: TOKEN_MAP.bootstrap_company,
+        system,
+        messages: [{ role: "user", content: userContent }],
+      };
+      if (useWebSearch) {
+        requestBody.tools = [{ type: "web_search_20250305", name: "web_search" }];
+      }
 
       const response = await fetch(ANTHROPIC_URL, {
         method: "POST",
@@ -474,15 +519,9 @@ export default async function handler(req, res) {
           "Content-Type": "application/json",
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
-          "anthropic-beta": "web-search-2025-03-05",
+          ...(useWebSearch ? { "anthropic-beta": "web-search-2025-03-05" } : {}),
         },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: TOKEN_MAP.bootstrap_company,
-          system,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{ role: "user", content: userContent }],
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
