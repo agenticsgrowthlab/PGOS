@@ -383,10 +383,7 @@ const HANDOFF_SECTIONS = [
 function PersonaCards({ text }) {
   if (!text) return <div style={{ color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>No personas generated yet.</div>;
   // Parse persona blocks separated by "---" or "##"
-  const blocks = text.split(/
----+
-|
-#{1,3} /).filter(b => b.trim().length > 40);
+  const blocks = text.split(/\n-{3,}\n|\n(?=#{1,3}\s)/).filter(b => b.trim().length > 40);
   if (blocks.length < 2) {
     // Single block — show as formatted card
     return (
