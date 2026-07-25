@@ -368,83 +368,397 @@ export function PIPlanning() {
 }
 
 // ─── Handoff ─────────────────────────────────────────────────
-export function Handoff() {
-  const { initiatives, foundation } = useApp();
-  const [selected, setSelected] = useState("");
-  const [handoff, setHandoff] = useState("");
-  const [loading, setLoading] = useState(false);
-  const ini = initiatives.find(i => i.id === selected);
-  const score = ini ? calcPivot(ini.pivot) : 0;
-  const tier = ini ? pivotTier(score) : {};
+const HANDOFF_SECTIONS = [
+  { key: "overview",   label: "Initiative Overview",      icon: "⊞", aiKey: null },
+  { key: "personas",   label: "Customer Personas",        icon: "◉", aiKey: "personas" },
+  { key: "journey",    label: "Customer Journey Map",     icon: "→", aiKey: "journeys" },
+  { key: "jtbd",       label: "Jobs To Be Done",          icon: "◈", aiKey: "jtbd" },
+  { key: "usecases",   label: "Use Cases",                icon: "◇", aiKey: "usecases" },
+  { key: "epics",      label: "Epics & Stories",          icon: "⊕", aiKey: "epics" },
+  { key: "risks",      label: "Risk Register (ROAM)",     icon: "△", aiKey: "risks" },
+  { key: "pi",         label: "PI Planning & Estimates",  icon: "◎", aiKey: null },
+  { key: "gonogo",     label: "Go/No-Go Checklist",       icon: "✓", aiKey: null },
+];
 
-  const generate = async () => {
-    if (!ini) return;
-    setLoading(true);
-    const text = await callAI("handoff", {
-      foundation, initiative: { ...ini, okrName: "", themeName: "", capabilityName: "" }, score, tier: tier.label,
-    }).catch(() => "");
-    setHandoff(text);
-    setLoading(false);
+function PersonaCards({ text }) {
+  if (!text) return <div style={{ color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>No personas generated yet.</div>;
+  // Parse persona blocks separated by "---" or "##"
+  const blocks = text.split(/
+---+
+|
+#{1,3} /).filter(b => b.trim().length > 40);
+  if (blocks.length < 2) {
+    // Single block — show as formatted card
+    return (
+      <div style={{ background: "#1C2640", borderRadius: 8, padding: 14, border: "1px solid #2A3A5C" }}>
+        <pre style={{ color: "#C8D4F0", fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap", margin: 0 }}>{text}</pre>
+      </div>
+    );
+  }
+  const colors = [T.steel, T.purple, T.teal, T.gold, T.ice];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+      {blocks.slice(0, 4).map((block, i) => {
+        const lines = block.trim().split("\n");
+        const title = lines[0].replace(/^#+\s*/, "").trim();
+        const body  = lines.slice(1).join("\n").trim();
+        return (
+          <div key={i} style={{ background: "#111827", border: `2px solid ${colors[i % colors.length]}33`, borderTop: `3px solid ${colors[i % colors.length]}`, borderRadius: 10, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: colors[i % colors.length], marginBottom: 8 }}>{title || `Persona ${i+1}`}</div>
+            <pre style={{ color: "#C8D4F0", fontSize: 11, lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{body}</pre>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function JourneyMap({ current, future }) {
+  const renderSteps = (text, color) => {
+    if (!text) return <div style={{ color: "#6B7A99", fontSize: 12, fontStyle: "italic" }}>Not generated yet.</div>;
+    const steps = text.split("\n").filter(l => l.trim().match(/^[-•*]|^\d+\./) || l.trim().length > 20).slice(0, 8);
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <div style={{ width: 22, height: 22, borderRadius: "50%", background: color + "22", border: `1.5px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color, flexShrink: 0, marginTop: 1 }}>{i + 1}</div>
+            <div style={{ fontSize: 12, color: "#C8D4F0", lineHeight: 1.55 }}>{s.replace(/^[-•*]\s*|^\d+\.\s*/, "").trim()}</div>
+          </div>
+        ))}
+      </div>
+    );
   };
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: T.red, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Current State — Pain Points</div>
+        {renderSteps(current, T.red)}
+      </div>
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: T.green, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Future State — Target Experience</div>
+        {renderSteps(future, T.green)}
+      </div>
+    </div>
+  );
+}
 
-  const completeness = ini ? [
-    ["Problem Statement", !!ini.problem],
-    ["PIVOT Score", calcPivot(ini.pivot) > 0],
-    ["Exec Brief", !!ini.execBrief],
-    ["Personas", !!ini.personas],
-    ["Journey Maps", !!ini.currentJourney],
-    ["JTBD", !!ini.jtbd],
-    ["Use Cases", !!ini.usecases],
-    ["Epics & Stories", !!ini.epics],
-    ["Risk Register", !!ini.riskReg],
-    ["Approved", !!ini.approved],
-  ] : [];
+function TextSection({ text, placeholder }) {
+  if (!text) return <div style={{ color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>{placeholder || "Not generated yet."}</div>;
+  const blocks = text.split("\n").filter(l => l.trim());
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {blocks.map((line, i) => {
+        const isHeader = line.match(/^#{1,3}\s/) || line.match(/^[A-Z][A-Z\s]{4,}:/);
+        const isBullet = line.match(/^[-•*]\s/) || line.match(/^\d+\.\s/);
+        return (
+          <div key={i} style={{
+            fontSize: isHeader ? 11 : 12,
+            fontWeight: isHeader ? 700 : 400,
+            color: isHeader ? T.gold : "#C8D4F0",
+            lineHeight: 1.6,
+            paddingLeft: isBullet ? 12 : 0,
+            letterSpacing: isHeader ? "0.06em" : 0,
+            textTransform: isHeader ? "uppercase" : "none",
+            marginTop: isHeader ? 8 : 0,
+          }}>
+            {isBullet ? "▪ " : ""}{line.replace(/^#{1,3}\s*/, "").replace(/^[-•*]\s*|^\d+\.\s*/, "").trim()}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RiskCards({ text }) {
+  if (!text) return <div style={{ color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>No risk register generated yet.</div>;
+  const blocks = text.split(/\n-{3,}\n|(?:\n|^)#{1,3}\s/).filter(b => b.trim().length > 20);
+  const roamColors = { R: T.red, O: T.amber, A: T.steel, M: T.green };
+  const roamLabels = { R: "Resolved", O: "Owned", A: "Accepted", M: "Mitigated" };
+  if (blocks.length < 2) {
+    return <TextSection text={text} />;
+  }
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+      {blocks.slice(0, 8).map((block, i) => {
+        const lines = block.trim().split("\n");
+        const title = lines[0].replace(/^#+\s*|^\*+/, "").trim();
+        const roamMatch = block.match(/\b(Resolved|Owned|Accepted|Mitigated|ROAM[:\s]*[ROAM])/i);
+        const roamKey = roamMatch ? roamMatch[0][0].toUpperCase() : "O";
+        const color = roamColors[roamKey] || T.muted;
+        return (
+          <div key={i} style={{ background: "#111827", border: `1px solid ${color}33`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#F0F4FF" }}>{title || `Risk ${i+1}`}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color, background: color + "22", padding: "2px 6px", borderRadius: 4 }}>{roamLabels[roamKey] || "Owned"}</div>
+            </div>
+            <pre style={{ color: "#6B7A99", fontSize: 10, lineHeight: 1.5, whiteSpace: "pre-wrap", margin: 0 }}>{lines.slice(1).join("\n").trim()}</pre>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GoNoGo({ ini }) {
+  const checks = [
+    { label: "Problem Statement defined", done: !!ini.problem, required: true },
+    { label: "PIVOT Score calculated", done: calcPivot(ini.pivot) > 0, required: true },
+    { label: "Executive Brief generated", done: !!ini.execBrief, required: true },
+    { label: "Investment approved", done: !!ini.approved, required: true },
+    { label: "Customer Personas generated", done: !!ini.personas, required: true },
+    { label: "Current Journey mapped", done: !!ini.currentJourney, required: true },
+    { label: "Future Journey mapped", done: !!ini.futureJourney, required: true },
+    { label: "Jobs To Be Done defined", done: !!ini.jtbd, required: true },
+    { label: "Use Cases documented", done: !!ini.usecases, required: true },
+    { label: "Epics & Stories generated", done: !!ini.epics, required: true },
+    { label: "Risk Register (ROAM) complete", done: !!ini.riskReg, required: true },
+    { label: "Engineering estimate entered", done: !!(ini.engSpend?.estimate || ini.engSpend?.sprints), required: false },
+    { label: "PI Planning objectives set", done: !!ini.piPlanning, required: false },
+  ];
+  const required = checks.filter(c => c.required);
+  const optional = checks.filter(c => !c.required);
+  const reqDone = required.filter(c => c.done).length;
+  const allGo = reqDone === required.length;
+  const pct = Math.round((reqDone / required.length) * 100);
 
   return (
     <div>
-      <div style={css.h2}>Engineering Handoff Packages</div>
-      <div style={css.sub}>AI assembles everything into one complete, PI-ready delivery package.</div>
-
-      <div style={{ marginBottom: 16 }}>
-        <label style={css.label}>Select Initiative</label>
-        <select style={{ ...css.input, maxWidth: 480 }} value={selected} onChange={e => { setSelected(e.target.value); setHandoff(""); }}>
-          <option value="">— Select an initiative —</option>
-          {initiatives.map(i => <option key={i.id} value={i.id}>{i.slug} · {i.title} {i.approved ? "✓" : ""}</option>)}
-        </select>
+      {/* Status banner */}
+      <div style={{ background: allGo ? "rgba(34,197,94,0.1)" : "rgba(212,168,67,0.1)", border: `1px solid ${allGo ? T.green : T.gold}`, borderRadius: 10, padding: "14px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ fontSize: 28 }}>{allGo ? "✅" : "⚠️"}</div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: allGo ? T.green : T.gold }}>{allGo ? "GO — Package Complete" : `NOT READY — ${required.length - reqDone} required items missing`}</div>
+          <div style={{ fontSize: 12, color: "#6B7A99", marginTop: 2 }}>{reqDone}/{required.length} required items complete · {pct}% ready</div>
+        </div>
+        {/* Progress bar */}
+        <div style={{ flex: 1, background: "#1C2640", borderRadius: 4, height: 6, marginLeft: 12 }}>
+          <div style={{ width: `${pct}%`, background: allGo ? T.green : T.gold, height: 6, borderRadius: 4, transition: "width 0.4s" }} />
+        </div>
       </div>
 
-      {ini && (
-        <>
-          <div style={{ ...css.card, background: T.ink3, marginBottom: 16 }}>
-            <div style={css.secHead}>Package Completeness</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {completeness.map(([label, done]) => (
-                <div key={label} style={{ ...css.tag(done ? T.green : T.muted, done ? T.grnD : "transparent"), gap: 5 }}>
-                  {done ? "✓" : "○"} {label}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Required — Must be complete before sprint kickoff</div>
+          {required.map((c, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid #1C2640" }}>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", background: c.done ? "rgba(34,197,94,0.15)" : "transparent", border: `1.5px solid ${c.done ? T.green : "#3A4A6A"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.green, flexShrink: 0 }}>
+                {c.done ? "✓" : ""}
+              </div>
+              <div style={{ fontSize: 12, color: c.done ? "#C8D4F0" : "#6B7A99" }}>{c.label}</div>
+            </div>
+          ))}
+        </div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Recommended — Strengthen the package</div>
+          {optional.map((c, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid #1C2640" }}>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", background: c.done ? "rgba(34,197,94,0.15)" : "transparent", border: `1.5px solid ${c.done ? T.green : "#3A4A6A"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.green, flexShrink: 0 }}>
+                {c.done ? "✓" : ""}
+              </div>
+              <div style={{ fontSize: 12, color: c.done ? "#C8D4F0" : "#6B7A99" }}>{c.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Handoff() {
+  const { initiatives, foundation, updateIni } = useApp();
+  const [selected, setSelected]     = useState("");
+  const [activeSection, setSection] = useState("overview");
+  const [regen, setRegen]           = useState({}); // { [aiKey]: loading }
+
+  const ini  = initiatives.find(i => i.id === selected) || null;
+  const score = ini ? calcPivot(ini.pivot) : 0;
+  const tier  = ini ? pivotTier(score) : {};
+
+  // Auto-select first approved ini
+  useEffect(() => {
+    if (!selected && initiatives.length) {
+      const approved = initiatives.find(i => i.approved);
+      setSelected(approved?.id || initiatives[0]?.id || "");
+    }
+  }, [initiatives]);
+
+  const regenSection = async (aiKey) => {
+    if (!ini || !aiKey) return;
+    setRegen(r => ({ ...r, [aiKey]: true }));
+    try {
+      const text = await callAI(aiKey, { foundation, initiative: ini, score, tier: tier.label }).catch(() => "");
+      if (text) {
+        const fieldMap = { personas: "personas", journeys: "currentJourney", jtbd: "jtbd", usecases: "usecases", epics: "epics", risks: "riskReg" };
+        const field = fieldMap[aiKey];
+        if (field) updateIni(ini.id, d => ({ ...d, [field]: text }));
+      }
+    } finally {
+      setRegen(r => ({ ...r, [aiKey]: false }));
+    }
+  };
+
+  const regenAll = async () => {
+    for (const sec of HANDOFF_SECTIONS.filter(s => s.aiKey)) {
+      await regenSection(sec.aiKey);
+    }
+  };
+
+  const sec = HANDOFF_SECTIONS.find(s => s.key === activeSection);
+
+  const renderSection = () => {
+    if (!ini) return null;
+    switch (activeSection) {
+      case "overview":
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {[
+              ["Initiative", ini.title],
+              ["ID", ini.slug],
+              ["Stage", ini.stage],
+              ["PIVOT Score™", `${score.toFixed(0)} — ${tier.label}`],
+              ["Investment Requested", ini.investment?.requested ? `$${Number(ini.investment.requested).toLocaleString()}` : "Not set"],
+              ["Investment Approved", ini.investment?.approved ? `$${Number(ini.investment.approved).toLocaleString()}` : "Not set"],
+              ["Engineering Estimate", ini.engSpend?.estimate ? `$${Number(ini.engSpend.estimate).toLocaleString()}` : "Not set"],
+              ["Teams", ini.engSpend?.teams || "Not set"],
+              ["Sprints", ini.engSpend?.sprints || "Not set"],
+              ["Approved By", ini.approved_by || "Not set"],
+              ["Approval Date", ini.approved_date || "Not set"],
+              ["Status", ini.approved ? "✓ Approved for PI" : "Pending Approval"],
+            ].map(([label, value]) => (
+              <div key={label} style={{ background: "#1C2640", borderRadius: 8, padding: "10px 14px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{label}</div>
+                <div style={{ fontSize: 13, color: "#F0F4FF", fontWeight: 600 }}>{value}</div>
+              </div>
+            ))}
+            <div style={{ gridColumn: "1 / -1", background: "#1C2640", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Problem Statement</div>
+              <div style={{ fontSize: 13, color: "#C8D4F0", lineHeight: 1.65 }}>{ini.problem || "Not defined."}</div>
+            </div>
+            <div style={{ gridColumn: "1 / -1", background: "#1C2640", borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Opportunity</div>
+              <div style={{ fontSize: 13, color: "#C8D4F0", lineHeight: 1.65 }}>{ini.opportunity || "Not defined."}</div>
+            </div>
+          </div>
+        );
+      case "personas":
+        return <PersonaCards text={ini.personas} />;
+      case "journey":
+        return <JourneyMap current={ini.currentJourney} future={ini.futureJourney} />;
+      case "jtbd":
+        return <TextSection text={ini.jtbd} placeholder="Jobs To Be Done not generated yet." />;
+      case "usecases":
+        return <TextSection text={ini.usecases} placeholder="Use Cases not generated yet." />;
+      case "epics":
+        return <TextSection text={ini.epics} placeholder="Epics & Stories not generated yet." />;
+      case "risks":
+        return <RiskCards text={ini.riskReg} />;
+      case "pi":
+        return (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
+              {[
+                ["Teams", ini.engSpend?.teams || "—", T.steel],
+                ["Sprints", ini.engSpend?.sprints || "—", T.gold],
+                ["Estimate", ini.engSpend?.estimate ? `$${Number(ini.engSpend.estimate).toLocaleString()}` : "—", T.green],
+              ].map(([l,v,c]) => (
+                <div key={l} style={{ background: "#1C2640", borderRadius: 8, padding: 14, textAlign: "center" }}>
+                  <div style={{ fontSize: 10, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em" }}>{l}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: c, marginTop: 4 }}>{v}</div>
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button style={css.btnGold} onClick={generate} disabled={loading}>
-              {loading ? "Assembling…" : "◆ Generate Handoff Package"}
-            </button>
-            {handoff && <button style={css.btnGhost} onClick={() => navigator.clipboard.writeText(handoff)}>Copy All</button>}
-          </div>
-          {loading && <AIBox label="◆ Handoff Advisor — Assembling Package" loading />}
-          {handoff && (
-            <div style={css.card}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, color: T.gold }}>📦 {ini.title} — Engineering Handoff Package</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button style={css.btnGhost} onClick={generate}>↻ Regenerate</button>
-                  <button style={css.btnOut} onClick={() => navigator.clipboard.writeText(handoff)}>Copy</button>
-                </div>
-              </div>
-              <textarea rows={36} style={{ ...css.ta, fontSize: 12, lineHeight: 1.75 }} value={handoff} onChange={e => setHandoff(e.target.value)} />
+            <div style={{ background: "#1C2640", borderRadius: 8, padding: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>PI Planning Objectives</div>
+              <TextSection text={ini.piPlanning} placeholder="PI Planning not generated yet. Run PI Planning from the Portfolio stage." />
             </div>
-          )}
-        </>
+          </div>
+        );
+      case "gonogo":
+        return <GoNoGo ini={ini} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <div style={css.h2}>Stage 7 — Engineering Handoff</div>
+      <div style={css.sub}>Visual package for engineering, design, and QA leads. Export to PPT for the formal PI-ready document.</div>
+
+      {/* Initiative selector */}
+      <div style={{ ...css.card, marginBottom: 16, display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <label style={css.label}>Select Initiative</label>
+          <select style={css.input} value={selected} onChange={e => { setSelected(e.target.value); setSection("overview"); }}>
+            <option value="">— Select —</option>
+            {initiatives.map(i => (
+              <option key={i.id} value={i.id}>{i.slug} · {i.title} {i.approved ? "✓ Approved" : ""}</option>
+            ))}
+          </select>
+        </div>
+        {ini && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={css.btnOut} onClick={regenAll}>◆ Generate All Sections</button>
+          </div>
+        )}
+      </div>
+
+      {ini && (
+        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 20 }}>
+          {/* Section nav */}
+          <div style={{ ...css.card, padding: "8px 0", alignSelf: "start", position: "sticky", top: 70 }}>
+            {HANDOFF_SECTIONS.map(s => {
+              const sectionData = {
+                overview: true,
+                personas: !!ini.personas,
+                journey: !!ini.currentJourney || !!ini.futureJourney,
+                jtbd: !!ini.jtbd,
+                usecases: !!ini.usecases,
+                epics: !!ini.epics,
+                risks: !!ini.riskReg,
+                pi: !!ini.piPlanning || !!ini.engSpend?.sprints,
+                gonogo: true,
+              };
+              const done = sectionData[s.key];
+              return (
+                <button key={s.key} onClick={() => setSection(s.key)}
+                  style={{ width: "100%", textAlign: "left", padding: "8px 14px", background: activeSection === s.key ? "#1B3A6B" : "transparent", border: "none", borderLeft: `3px solid ${activeSection === s.key ? T.gold : done ? T.green : "#2A3A5C"}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, color: activeSection === s.key ? T.gold : done ? T.green : "#6B7A99" }}>{s.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: activeSection === s.key ? 700 : 400, color: activeSection === s.key ? T.gold : done ? "#C8D4F0" : "#6B7A99" }}>{s.label}</div>
+                    <div style={{ fontSize: 9, color: done ? T.green : "#3A4A6A", marginTop: 1 }}>{done ? "✓ complete" : "not generated"}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Section content */}
+          <div>
+            <div style={{ ...css.card, marginBottom: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#F0F4FF" }}>{sec?.icon} {sec?.label}</div>
+                  <div style={{ fontSize: 11, color: "#6B7A99", marginTop: 2 }}>
+                    {ini.slug} · {ini.title}
+                  </div>
+                </div>
+                {sec?.aiKey && (
+                  <button style={css.btnOut} onClick={() => regenSection(sec.aiKey)} disabled={regen[sec.aiKey]}>
+                    {regen[sec.aiKey] ? "◆ Generating…" : "◆ Regenerate"}
+                  </button>
+                )}
+              </div>
+              {renderSection()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!ini && (
+        <div style={{ ...css.card, textAlign: "center", padding: 48, color: "#6B7A99" }}>
+          Select an initiative above to view its handoff package.
+        </div>
       )}
     </div>
   );
