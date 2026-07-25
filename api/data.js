@@ -456,7 +456,7 @@ async function handleInitiatives(sql, action, payload) {
           epics            = COALESCE(${p.epics}, epics),
           risk_register    = COALESCE(${p.risk_register}, risk_register),
           pi_planning      = COALESCE(${p.pi_planning}, pi_planning),
-          handoff_package  = COALESCE(${p.handoff_package}, handoff_package),
+          handoff_package  = COALESCE(${p.handoff_package}, handoff_package)
         WHERE id = ${p.id}
         RETURNING *
       `;
