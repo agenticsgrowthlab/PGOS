@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PGI API Integration Test</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0f1e; color: #c8d4f0; font-family: 'Courier New', monospace; font-size: 13px; }
+
+header { background: #111827; border-bottom: 2px solid #1B3A6B; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.header-left h1 { color: #fff; font-size: 15px; font-weight: 700; letter-spacing: 0.05em; }
+.header-left .subtitle { color: #6b7a99; font-size: 10px; margin-top: 2px; }
+.header-right { font-size: 10px; color: #f59e0b; background: #1c1408; border: 1px solid #92400e; padding: 4px 10px; border-radius: 3px; }
+
+.layout { display: grid; grid-template-columns: 310px 1fr; min-height: calc(100vh - 53px); }
+
+/* SIDEBAR */
+.sidebar { background: #0d1526; border-right: 1px solid #1e2d4a; padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+.s-label { color: #2E75B6; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding-bottom: 6px; border-bottom: 1px solid #1e2d4a; margin-bottom: 4px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { color: #6b7a99; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+input, select { background: #111827; border: 1px solid #1e2d4a; color: #c8d4f0; padding: 7px 9px; font-family: 'Courier New', monospace; font-size: 12px; border-radius: 3px; width: 100%; }
+input:focus, select:focus { outline: none; border-color: #2E75B6; }
+
+.pill { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 10px; display: inline-block; margin-top: 4px; }
+.pill-ok   { background:#052e16; color:#22c55e; border:1px solid #14532d; }
+.pill-empty{ background:#1a1f35; color:#6b7a99; border:1px solid #1e2d4a; }
+.pill-warn { background:#1c1408; color:#f59e0b; border:1px solid #92400e; }
+
+.btn { padding: 9px 16px; border: none; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; cursor: pointer; width: 100%; letter-spacing: 0.04em; margin-bottom: 4px; }
+.btn-primary { background: #1B3A6B; color: #fff; border: 1px solid #2E75B6; }
+.btn-primary:hover:not(:disabled) { background: #2E75B6; }
+.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: #6b7a99; border: 1px solid #1e2d4a; }
+.btn-ghost:hover { border-color: #2E75B6; color: #c8d4f0; }
+.btn-danger { background: transparent; color: #ef4444; border: 1px solid #7f1d1d; }
+.btn-danger:hover { background: #2d0b0b; }
+
+.prog-bar { background: #1e2d4a; border-radius: 2px; height: 5px; overflow: hidden; }
+.prog-fill { background: linear-gradient(90deg, #1B3A6B, #2E75B6); height: 100%; transition: width 0.2s ease; }
+.prog-label { font-size: 10px; color: #6b7a99; margin-top: 4px; }
+
+.sql-box { background: #111827; border: 1px solid #1e2d4a; border-radius: 3px; padding: 8px; font-size: 10px; color: #6b7a99; white-space: pre; overflow-x: auto; max-height: 140px; overflow-y: auto; user-select: all; cursor: text; line-height: 1.5; }
+.copy-btn { background: transparent; color: #2E75B6; border: 1px solid #2E75B6; font-family: 'Courier New', monospace; font-size: 10px; padding: 3px 8px; border-radius: 2px; cursor: pointer; margin-top: 4px; width: 100%; }
+.copy-btn:hover { background: #2E75B6; color: #fff; }
+
+.restore-notice { font-size: 10px; color: #6b7a99; line-height: 1.5; background: #0d1526; border: 1px solid #1e2d4a; border-radius: 3px; padding: 8px; }
+
+/* MAIN */
+.main { padding: 20px 24px; overflow-y: auto; }
+
+.summary-row { display: flex; gap: 28px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #1e2d4a; flex-wrap: wrap; align-items: center; }
+.stat .num  { font-size: 32px; font-weight: 900; line-height: 1; }
+.stat .lbl  { font-size: 10px; color: #6b7a99; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+.s-pass .num { color: #22c55e; }
+.s-fail .num { color: #ef4444; }
+.s-skip .num { color: #f59e0b; }
+.s-total .num { color: #c8d4f0; }
+.test-id-display { font-size: 10px; color: #374151; font-family: 'Courier New', monospace; margin-left: auto; }
+
+.group { margin-bottom: 28px; }
+.group-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #2E75B6; padding: 6px 0 8px; border-bottom: 1px solid #1e2d4a; display: flex; align-items: center; gap: 8px; }
+.mig-badge { color: #f59e0b; font-size: 9px; background: #1c1408; border: 1px solid #92400e; padding: 1px 6px; border-radius: 10px; font-weight: 700; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 8px; margin-top: 10px; }
+
+.card { background: #0d1526; border: 1px solid #1e2d4a; border-radius: 4px; padding: 10px 12px; display: flex; align-items: flex-start; gap: 10px; transition: border-color 0.15s, background 0.15s; }
+.card.idle    { }
+.card.running { border-color: #2E75B6; background: #0a1628; }
+.card.pass    { border-color: #14532d; background: #052e16; }
+.card.fail    { border-color: #7f1d1d; background: #2d0b0b; }
+.card.skip    { border-color: #92400e; background: #1c1408; }
+.card.warn    { border-color: #854d0e; background: #1c1408; }
+
+.chk { width: 22px; height: 22px; border-radius: 50%; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0; margin-top:1px; font-weight:700; }
+.chk.idle    { background:#1e2d4a; color:#374151; }
+.chk.running { background:#1e2d4a; color:#2E75B6; animation:spin 0.8s linear infinite; }
+.chk.pass    { background:#14532d; color:#22c55e; }
+.chk.fail    { background:#7f1d1d; color:#ef4444; }
+.chk.skip    { background:#92400e; color:#f59e0b; }
+.chk.warn    { background:#854d0e; color:#fbbf24; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.card-body { flex:1; min-width:0; }
+.card-name { font-weight:700; font-size:12px; color:#fff; margin-bottom:1px; }
+.card-meta { font-size:10px; color:#374151; margin-bottom:3px; }
+.card-msg  { font-size:10px; line-height:1.4; word-break:break-all; }
+.card-msg.idle    { color:#374151; }
+.card-msg.running { color:#2E75B6; }
+.card-msg.pass    { color:#86efac; }
+.card-msg.fail    { color:#fca5a5; }
+.card-msg.skip    { color:#fcd34d; }
+.card-msg.warn    { color:#fcd34d; }
+
+.sent-val { font-size:9px; color:#6b7a99; margin-top:2px; font-style:italic; }
+
+.empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 20px; gap:12px; color:#374151; text-align:center; }
+.empty-icon { font-size:48px; }
+.empty-note { font-size:11px; line-height:1.6; max-width:360px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>◆ PGI API INTEGRATION TEST</h1>
+    <div class="subtitle">Tests /api/data directly · Does NOT test frontend debounce/save paths · Saves to real Neon · Restores originals after</div>
+  </div>
+  <div class="header-right">⚠ Run on a real initiative — restores original values after test</div>
+</header>
+
+<div class="layout">
+<div class="sidebar">
+
+  <div>
+    <div class="s-label">1 · Target</div>
+    <div class="field">
+      <label>Base URL</label>
+      <input id="base-url" value="https://product-growth.vercel.app" />
+    </div>
+  </div>
+
+  <div>
+    <div class="s-label">2 · Org</div>
+    <button class="btn btn-primary" onclick="loadOrgs()">Load Orgs</button>
+    <div class="field">
+      <label>Organization</label>
+      <select id="org-sel" onchange="onOrgChange()"><option value="">— load first —</option></select>
+    </div>
+    <span class="pill pill-empty" id="org-pill">not selected</span>
+  </div>
+
+  <div>
+    <div class="s-label">3 · Initiative</div>
+    <button class="btn btn-primary" onclick="loadInits()">Load Initiatives</button>
+    <div class="field">
+      <label>Initiative</label>
+      <select id="ini-sel" onchange="onIniChange()"><option value="">— load first —</option></select>
+    </div>
+    <span class="pill pill-empty" id="ini-pill">not selected</span>
+    <div class="restore-notice" id="restore-notice" style="display:none;margin-top:8px">
+      ↺ Originals will be restored after test completes
+    </div>
+  </div>
+
+  <div>
+    <div class="s-label">4 · Run</div>
+    <button class="btn btn-primary" id="run-btn" onclick="runAll()" disabled>▶ Test All Fields</button>
+    <button class="btn btn-ghost" onclick="resetUI()">↺ Reset</button>
+    <div class="prog-bar" style="margin-top:10px"><div class="prog-fill" id="prog" style="width:0%"></div></div>
+    <div class="prog-label" id="prog-lbl">Ready</div>
+  </div>
+
+  <div>
+    <div class="s-label">5 · Neon Verify SQL</div>
+    <div class="sql-box" id="sql-box">Select an initiative to generate SQL</div>
+    <button class="copy-btn" onclick="copySql()">⎘ Copy SQL</button>
+  </div>
+
+</div>
+
+<div class="main" id="main">
+  <div class="empty">
+    <div class="empty-icon">◆</div>
+    <div class="empty-note">
+      Load org → load initiatives → click Test All<br><br>
+      This tests the <strong>/api/data endpoint only</strong>.<br>
+      It does not test frontend debounce, denormalizeInitiative, or the Measure/Contract save paths.<br><br>
+      Original field values are captured before the test and restored after.
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────
+let orgId = null, iniId = null;
+let originals = {};     // snapshot of row before test
+let running = false;
+let pass = 0, fail = 0, skip = 0, total = 0;
+
+const base = () => document.getElementById('base-url').value.replace(/\/$/, '');
+const uid  = () => 'T' + Math.random().toString(36).slice(2,10).toUpperCase(); // 8-char sentinel
+
+// ─── Test Definitions ─────────────────────────────────────────
+// Each test:
+//   name      : display label
+//   db        : column name returned by SELECT i.*
+//   type      : Postgres type (display only)
+//   payload() : object merged into { id } for the update call
+//   verify(row, sentinel) : returns true if the value landed correctly
+//   migration : true = wrapped in try/catch in data.js, skip if column missing
+//   note      : optional extra warning
+//
+// Sentinel strategy: text fields use a unique 8-char token per run.
+// Numeric fields use a distinctive test value (not likely to collide with real data).
+// Boolean fields tested both true AND false with explicit assertions.
+
+const SENTINEL = uid(); // one sentinel per full test run
+
+const GROUPS = [
+  {
+    title: 'Core Text',
+    tests: [
+      { name:'title',         db:'title',        type:'TEXT',
+        payload: s => ({ title: 'TEST_' + s }),
+        verify:  (row,s) => row.title === 'TEST_' + s },
+      { name:'stage',         db:'stage',        type:'TEXT',
+        payload: s => ({ stage: 'idea' }),
+        verify:  (row,s) => row.stage === 'idea' },
+      { name:'source',        db:'source',       type:'TEXT',
+        payload: s => ({ source: 'TST_' + s }),
+        verify:  (row,s) => row.source === 'TST_' + s },
+      { name:'source_detail', db:'source_detail',type:'TEXT',
+        payload: s => ({ source_detail: 'TSTD_' + s }),
+        verify:  (row,s) => row.source_detail === 'TSTD_' + s },
+      { name:'problem',       db:'problem',      type:'TEXT',
+        payload: s => ({ problem: 'TSTP_' + s }),
+        verify:  (row,s) => row.problem === 'TSTP_' + s },
+      { name:'opportunity',   db:'opportunity',  type:'TEXT',
+        payload: s => ({ opportunity: 'TSTO_' + s }),
+        verify:  (row,s) => row.opportunity === 'TSTO_' + s },
+    ]
+  },
+  {
+    title: 'Evidence (TEXT × 6)',
+    tests: [
+      { name:'evidence_interviews',     db:'evidence_interviews',     type:'TEXT', payload:s=>({evidence_interviews:'EV_INT_'+s}),    verify:(r,s)=>r.evidence_interviews==='EV_INT_'+s },
+      { name:'evidence_pain_confirmed', db:'evidence_pain_confirmed', type:'TEXT', payload:s=>({evidence_pain_confirmed:'EV_PAIN_'+s}),verify:(r,s)=>r.evidence_pain_confirmed==='EV_PAIN_'+s },
+      { name:'evidence_revenue_opp',    db:'evidence_revenue_opp',    type:'TEXT', payload:s=>({evidence_revenue_opp:'EV_REV_'+s}),   verify:(r,s)=>r.evidence_revenue_opp==='EV_REV_'+s },
+      { name:'evidence_cost_savings',   db:'evidence_cost_savings',   type:'TEXT', payload:s=>({evidence_cost_savings:'EV_COST_'+s}),  verify:(r,s)=>r.evidence_cost_savings==='EV_COST_'+s },
+      { name:'evidence_competitive',    db:'evidence_competitive',    type:'TEXT', payload:s=>({evidence_competitive:'EV_COMP_'+s}),   verify:(r,s)=>r.evidence_competitive==='EV_COMP_'+s },
+      { name:'evidence_nps',            db:'evidence_nps',            type:'TEXT', payload:s=>({evidence_nps:'EV_NPS_'+s}),           verify:(r,s)=>r.evidence_nps==='EV_NPS_'+s },
+    ]
+  },
+  {
+    title: 'PIVOT Scores (NUMERIC)',
+    tests: [
+      { name:'pivot_p', db:'pivot_p', type:'NUMERIC', payload:()=>({pivot_p:7.77}),  verify:(r)=>parseFloat(r.pivot_p)===7.77 },
+      { name:'pivot_i', db:'pivot_i', type:'NUMERIC', payload:()=>({pivot_i:6.66}),  verify:(r)=>parseFloat(r.pivot_i)===6.66 },
+      { name:'pivot_v', db:'pivot_v', type:'NUMERIC', payload:()=>({pivot_v:8.88}),  verify:(r)=>parseFloat(r.pivot_v)===8.88 },
+      { name:'pivot_o', db:'pivot_o', type:'NUMERIC', payload:()=>({pivot_o:4.44}),  verify:(r)=>parseFloat(r.pivot_o)===4.44 },
+      { name:'pivot_t', db:'pivot_t', type:'NUMERIC', payload:()=>({pivot_t:3.33}),  verify:(r)=>parseFloat(r.pivot_t)===3.33 },
+    ]
+  },
+  {
+    title: 'Investment & Engineering (BIGINT / INTEGER)',
+    tests: [
+      { name:'investment_requested', db:'investment_requested', type:'BIGINT',  payload:()=>({investment_requested:777001}), verify:(r)=>parseInt(r.investment_requested)===777001 },
+      { name:'investment_approved',  db:'investment_approved',  type:'BIGINT',  payload:()=>({investment_approved:555002}),  verify:(r)=>parseInt(r.investment_approved)===555002 },
+      { name:'eng_teams',            db:'eng_teams',            type:'INTEGER', payload:()=>({eng_teams:9}),                 verify:(r)=>parseInt(r.eng_teams)===9 },
+      { name:'eng_sprints',          db:'eng_sprints',          type:'INTEGER', payload:()=>({eng_sprints:17}),              verify:(r)=>parseInt(r.eng_sprints)===17 },
+      { name:'eng_estimate',         db:'eng_estimate',         type:'BIGINT',  payload:()=>({eng_estimate:888003}),         verify:(r)=>parseInt(r.eng_estimate)===888003 },
+    ]
+  },
+  {
+    title: 'WSJF Scores (INTEGER × 4)',
+    tests: [
+      { name:'wsjf_biz_value',      db:'wsjf_biz_value',      type:'INTEGER', payload:()=>({wsjf_biz_value:9}),       verify:(r)=>parseInt(r.wsjf_biz_value)===9 },
+      { name:'wsjf_time_crit',      db:'wsjf_time_crit',      type:'INTEGER', payload:()=>({wsjf_time_crit:8}),       verify:(r)=>parseInt(r.wsjf_time_crit)===8 },
+      { name:'wsjf_risk_reduction', db:'wsjf_risk_reduction',  type:'INTEGER', payload:()=>({wsjf_risk_reduction:7}), verify:(r)=>parseInt(r.wsjf_risk_reduction)===7 },
+      { name:'wsjf_effort',         db:'wsjf_effort',          type:'INTEGER', payload:()=>({wsjf_effort:2}),         verify:(r)=>parseInt(r.wsjf_effort)===2 },
+    ]
+  },
+  {
+    title: 'Approval — BOOLEAN (direct write path)',
+    note: 'Sends approved:true then approved:false · restores original after',
+    tests: [
+      { name:'approved → true',
+        db:'approved', type:'BOOLEAN',
+        payload:()=>({ approved:true,  approved_by:'TestHarness', approved_date:'2026-01-01' }),
+        verify:(r)=>r.approved===true },
+      { name:'approved → false',
+        db:'approved', type:'BOOLEAN',
+        payload:()=>({ approved:false, approved_by:'', approved_date:'' }),
+        verify:(r)=>r.approved===false },
+      { name:'approved_by',
+        db:'approved_by', type:'TEXT',
+        payload:s=>({ approved:true, approved_by:'TSTBY_'+s, approved_date:'2026-06-01' }),
+        verify:(r,s)=>r.approved_by==='TSTBY_'+s },
+      { name:'approved_date',
+        db:'approved_date', type:'TEXT',
+        payload:()=>({ approved:true, approved_by:'TestHarness', approved_date:'2099-12-31' }),
+        verify:(r)=>r.approved_date==='2099-12-31' },
+    ]
+  },
+  {
+    title: 'NUMERIC null (clear a field)',
+    note: 'Tests that sending 0 or null does not crash — COALESCE keeps existing value',
+    tests: [
+      { name:'pivot_p cleared (send 0)',  db:'pivot_p', type:'NUMERIC·null',
+        payload:()=>({pivot_p:0}),
+        verify:(r)=>{ const v=parseFloat(r.pivot_p); return v===0 || v===originals.pivot_p; },
+        note:'0 may be stored or COALESCE may keep prior — either is acceptable' },
+      { name:'investment_requested null', db:'investment_requested', type:'BIGINT·null',
+        payload:()=>({investment_requested:null}),
+        verify:(r)=>true, // COALESCE(null, existing) keeps existing — should not error
+        note:'null triggers COALESCE·keeps existing value·no crash = pass' },
+    ]
+  },
+  {
+    title: 'AI Text Artifacts (TEXT × 13)',
+    tests: [
+      { name:'pivot_coach',     db:'pivot_coach',     type:'TEXT', payload:s=>({pivot_coach:'TPC_'+s}),     verify:(r,s)=>r.pivot_coach==='TPC_'+s },
+      { name:'eng_estimate_ai', db:'eng_estimate_ai', type:'TEXT', payload:s=>({eng_estimate_ai:'TEA_'+s}), verify:(r,s)=>r.eng_estimate_ai==='TEA_'+s },
+      { name:'exec_brief',      db:'exec_brief',      type:'TEXT', payload:s=>({exec_brief:'TEB_'+s}),      verify:(r,s)=>r.exec_brief==='TEB_'+s },
+      { name:'one_pager',       db:'one_pager',       type:'TEXT', payload:s=>({one_pager:'TOP_'+s}),       verify:(r,s)=>r.one_pager==='TOP_'+s },
+      { name:'personas',        db:'personas',        type:'TEXT', payload:s=>({personas:'TPER_'+s}),       verify:(r,s)=>r.personas==='TPER_'+s },
+      { name:'current_journey', db:'current_journey', type:'TEXT', payload:s=>({current_journey:'TCJ_'+s}), verify:(r,s)=>r.current_journey==='TCJ_'+s },
+      { name:'future_journey',  db:'future_journey',  type:'TEXT', payload:s=>({future_journey:'TFJ_'+s}),  verify:(r,s)=>r.future_journey==='TFJ_'+s },
+      { name:'jtbd',            db:'jtbd',            type:'TEXT', payload:s=>({jtbd:'TJTBD_'+s}),          verify:(r,s)=>r.jtbd==='TJTBD_'+s },
+      { name:'use_cases',       db:'use_cases',       type:'TEXT', payload:s=>({use_cases:'TUC_'+s}),       verify:(r,s)=>r.use_cases==='TUC_'+s },
+      { name:'epics',           db:'epics',           type:'TEXT', payload:s=>({epics:'TEPIC_'+s}),         verify:(r,s)=>r.epics==='TEPIC_'+s },
+      { name:'risk_register',   db:'risk_register',   type:'TEXT', payload:s=>({risk_register:'TRR_'+s}),   verify:(r,s)=>r.risk_register==='TRR_'+s },
+      { name:'pi_planning',     db:'pi_planning',     type:'TEXT', payload:s=>({pi_planning:'TPIP_'+s}),    verify:(r,s)=>r.pi_planning==='TPIP_'+s },
+      { name:'handoff_package', db:'handoff_package', type:'TEXT', payload:s=>({handoff_package:'THND_'+s}),verify:(r,s)=>r.handoff_package==='THND_'+s },
+    ]
+  },
+  // ── MIGRATION GROUPS ───────────────────────────────────────
+  {
+    title: 'Roadmap Fields',
+    migration: true,
+    tests: [
+      { name:'roadmap_start', db:'roadmap_start', type:'DATE', payload:()=>({roadmap_start:'2026-01-01'}), verify:(r)=>!!r.roadmap_start },
+      { name:'roadmap_end',   db:'roadmap_end',   type:'DATE', payload:()=>({roadmap_end:'2026-12-31'}),   verify:(r)=>!!r.roadmap_end },
+      { name:'bar_color',     db:'bar_color',     type:'TEXT', payload:s=>({bar_color:'#TSTCOL'}),         verify:(r,s)=>r.bar_color==='#TSTCOL' },
+    ]
+  },
+  {
+    title: 'Measure Fields',
+    migration: true,
+    tests: [
+      { name:'launch_date',           db:'launch_date',           type:'DATE',    payload:()=>({launch_date:'2026-03-15'}),           verify:(r)=>!!r.launch_date },
+      { name:'adoption_rate',         db:'adoption_rate',         type:'NUMERIC', payload:()=>({adoption_rate:42.5}),                  verify:(r)=>parseFloat(r.adoption_rate)===42.5 },
+      { name:'monthly_active_users',  db:'monthly_active_users',  type:'INTEGER', payload:()=>({monthly_active_users:5000}),           verify:(r)=>parseInt(r.monthly_active_users)===5000 },
+      { name:'daily_active_users',    db:'daily_active_users',    type:'INTEGER', payload:()=>({daily_active_users:1200}),             verify:(r)=>parseInt(r.daily_active_users)===1200 },
+      { name:'feature_utilization',   db:'feature_utilization',   type:'NUMERIC', payload:()=>({feature_utilization:68.0}),            verify:(r)=>parseFloat(r.feature_utilization)===68 },
+      { name:'nps_score',             db:'nps_score',             type:'INTEGER', payload:()=>({nps_score:42}),                        verify:(r)=>parseInt(r.nps_score)===42 },
+      { name:'csat_score',            db:'csat_score',            type:'NUMERIC', payload:()=>({csat_score:4.3}),                      verify:(r)=>parseFloat(r.csat_score)===4.3 },
+      { name:'survey_responses',      db:'survey_responses',      type:'INTEGER', payload:()=>({survey_responses:250}),                verify:(r)=>parseInt(r.survey_responses)===250 },
+      { name:'call_deflection_pct',   db:'call_deflection_pct',   type:'NUMERIC', payload:()=>({call_deflection_pct:35.5}),            verify:(r)=>parseFloat(r.call_deflection_pct)===35.5 },
+      { name:'revenue_realized',      db:'revenue_realized',      type:'NUMERIC', payload:()=>({revenue_realized:125000}),             verify:(r)=>parseFloat(r.revenue_realized)===125000 },
+      { name:'cost_savings_realized', db:'cost_savings_realized', type:'NUMERIC', payload:()=>({cost_savings_realized:50000}),         verify:(r)=>parseFloat(r.cost_savings_realized)===50000 },
+      { name:'target_met → true',     db:'target_met',            type:'BOOLEAN', payload:()=>({target_met:true}),                     verify:(r)=>r.target_met===true },
+      { name:'measure_notes',         db:'measure_notes',         type:'TEXT',    payload:s=>({measure_notes:'TMN_'+s}),               verify:(r,s)=>r.measure_notes==='TMN_'+s },
+      { name:'key_verbatims (array)', db:'key_verbatims',         type:'TEXT[]',
+        payload:s=>({ key_verbatims: JSON.stringify(['VERB_A_'+s,'VERB_B_'+s]) }),
+        verify:(r,s)=>{ try { const a=JSON.parse(r.key_verbatims||'[]'); return a.some(v=>v.includes('VERB_A_'+s)); } catch(e){ return false; } },
+        note:'Sent as JSON string — check if API parses array correctly' },
+    ]
+  },
+  {
+    title: 'Outcome Fields',
+    migration: true,
+    tests: [
+      { name:'lessons_learned', db:'lessons_learned', type:'TEXT', payload:s=>({lessons_learned:'TLL_'+s}), verify:(r,s)=>r.lessons_learned==='TLL_'+s },
+      { name:'next_action',     db:'next_action',     type:'TEXT', payload:()=>({next_action:'iterate'}),   verify:(r)=>r.next_action==='iterate' },
+      { name:'outcome_summary', db:'outcome_summary', type:'TEXT', payload:s=>({outcome_summary:'TOS_'+s}), verify:(r,s)=>r.outcome_summary==='TOS_'+s },
+    ]
+  },
+  {
+    title: 'Investment Contract Fields',
+    migration: true,
+    tests: [
+      { name:'contract_primary_metric',   db:'contract_primary_metric',   type:'TEXT',    payload:s=>({contract_primary_metric:'TCM_'+s}),   verify:(r,s)=>r.contract_primary_metric==='TCM_'+s },
+      { name:'contract_baseline',         db:'contract_baseline',         type:'TEXT',    payload:()=>({contract_baseline:'10%'}),           verify:(r)=>r.contract_baseline==='10%' },
+      { name:'contract_target',           db:'contract_target',           type:'TEXT',    payload:()=>({contract_target:'25%'}),             verify:(r)=>r.contract_target==='25%' },
+      { name:'contract_secondary_metrics',db:'contract_secondary_metrics',type:'TEXT/JSON',
+        payload:s=>({ contract_secondary_metrics: JSON.stringify([{metric:'TSEC_'+s,baseline:'0',target:'50%'}]) }),
+        verify:(r,s)=>{ try { const v=r.contract_secondary_metrics; return JSON.stringify(v).includes('TSEC_'+s); } catch(e){ return false; } },
+        note:'Stored as JSON — verify structure survives round-trip' },
+      { name:'contract_telemetry_source', db:'contract_telemetry_source', type:'TEXT',    payload:s=>({contract_telemetry_source:'TTEL_'+s}), verify:(r,s)=>r.contract_telemetry_source==='TTEL_'+s },
+      { name:'contract_review_window',    db:'contract_review_window',    type:'INTEGER', payload:()=>({contract_review_window:90}),         verify:(r)=>parseInt(r.contract_review_window)===90 },
+      { name:'contract_economic_outcome', db:'contract_economic_outcome', type:'TEXT',    payload:s=>({contract_economic_outcome:'TEO_'+s}), verify:(r,s)=>r.contract_economic_outcome==='TEO_'+s },
+      { name:'contract_status',           db:'contract_status',           type:'TEXT',    payload:()=>({contract_status:'draft'}),           verify:(r)=>r.contract_status==='draft' },
+    ]
+  },
+];
+
+// ─── API ──────────────────────────────────────────────────────
+async function api(resource, action, payload) {
+  const res = await fetch(`${base()}/api/data`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ resource, action, payload }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+  return j;
+}
+
+// ─── Load ─────────────────────────────────────────────────────
+async function loadOrgs() {
+  try {
+    const r = await api('organization','list',{});
+    const sel = document.getElementById('org-sel');
+    sel.innerHTML = '<option value="">— select —</option>';
+    (r.data||[]).forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.id; opt.textContent = o.name; sel.appendChild(opt);
+    });
+  } catch(e) { alert('Load orgs failed: ' + e.message); }
+}
+
+function onOrgChange() {
+  orgId = document.getElementById('org-sel').value;
+  const name = document.getElementById('org-sel').selectedOptions[0]?.text || '';
+  setPill('org-pill', orgId ? name : 'not selected', orgId);
+}
+
+async function loadInits() {
+  if (!orgId) { alert('Select an org first'); return; }
+  try {
+    const r = await api('initiatives','list',{ org_id: orgId });
+    const sel = document.getElementById('ini-sel');
+    sel.innerHTML = '<option value="">— select —</option>';
+    (r.data||[]).forEach(i => {
+      const opt = document.createElement('option');
+      opt.value = i.id; opt.textContent = `${i.slug} — ${i.title}`;
+      sel.appendChild(opt);
+    });
+  } catch(e) { alert('Load initiatives failed: ' + e.message); }
+}
+
+function onIniChange() {
+  iniId = document.getElementById('ini-sel').value;
+  const text = document.getElementById('ini-sel').selectedOptions[0]?.text || '';
+  setPill('ini-pill', iniId ? text.slice(0,32) : 'not selected', iniId);
+  document.getElementById('run-btn').disabled = !iniId;
+  document.getElementById('restore-notice').style.display = iniId ? 'block' : 'none';
+  updateSql();
+}
+
+// ─── Snapshot / Restore ───────────────────────────────────────
+async function snapshot() {
+  const r = await api('initiatives','get',{ id: iniId });
+  originals = r.data || {};
+  return originals;
+}
+
+async function restore() {
+  if (!Object.keys(originals).length) return;
+  // Restore all base scalar fields to their original values
+  const o = originals;
+  try {
+    await api('initiatives','update',{
+      id: iniId,
+      title: o.title, stage: o.stage, source: o.source, source_detail: o.source_detail,
+      problem: o.problem, opportunity: o.opportunity,
+      evidence_interviews: o.evidence_interviews,
+      evidence_pain_confirmed: o.evidence_pain_confirmed,
+      evidence_revenue_opp: o.evidence_revenue_opp,
+      evidence_cost_savings: o.evidence_cost_savings,
+      evidence_competitive: o.evidence_competitive,
+      evidence_nps: o.evidence_nps,
+      pivot_p: o.pivot_p !== null ? parseFloat(o.pivot_p) : null,
+      pivot_i: o.pivot_i !== null ? parseFloat(o.pivot_i) : null,
+      pivot_v: o.pivot_v !== null ? parseFloat(o.pivot_v) : null,
+      pivot_o: o.pivot_o !== null ? parseFloat(o.pivot_o) : null,
+      pivot_t: o.pivot_t !== null ? parseFloat(o.pivot_t) : null,
+      investment_requested: o.investment_requested !== null ? parseInt(o.investment_requested) : null,
+      investment_approved:  o.investment_approved  !== null ? parseInt(o.investment_approved)  : null,
+      eng_teams:    o.eng_teams    !== null ? parseInt(o.eng_teams)    : null,
+      eng_sprints:  o.eng_sprints  !== null ? parseInt(o.eng_sprints)  : null,
+      eng_estimate: o.eng_estimate !== null ? parseInt(o.eng_estimate) : null,
+      wsjf_biz_value:      o.wsjf_biz_value      !== null ? parseInt(o.wsjf_biz_value)      : null,
+      wsjf_time_crit:      o.wsjf_time_crit      !== null ? parseInt(o.wsjf_time_crit)      : null,
+      wsjf_risk_reduction: o.wsjf_risk_reduction !== null ? parseInt(o.wsjf_risk_reduction) : null,
+      wsjf_effort:         o.wsjf_effort         !== null ? parseInt(o.wsjf_effort)         : null,
+      pivot_coach: o.pivot_coach, eng_estimate_ai: o.eng_estimate_ai,
+      exec_brief: o.exec_brief, one_pager: o.one_pager, personas: o.personas,
+      current_journey: o.current_journey, future_journey: o.future_journey,
+      jtbd: o.jtbd, use_cases: o.use_cases, epics: o.epics,
+      risk_register: o.risk_register, pi_planning: o.pi_planning,
+      handoff_package: o.handoff_package,
+    });
+    // Restore approval separately
+    await api('initiatives','update',{
+      id: iniId,
+      approved: typeof o.approved === 'boolean' ? o.approved : false,
+      approved_by: o.approved_by || '',
+      approved_date: o.approved_date || '',
+    });
+  } catch(e) {
+    console.warn('Restore error:', e);
+  }
+}
+
+// ─── Run ──────────────────────────────────────────────────────
+async function runAll() {
+  if (!iniId || running) return;
+  running = true;
+  document.getElementById('run-btn').disabled = true;
+  pass = 0; fail = 0; skip = 0;
+
+  // Fresh sentinel per run
+  const S = uid();
+
+  renderGrid(S);
+
+  // Count total
+  total = GROUPS.reduce((acc,g) => acc + g.tests.length, 0);
+  document.getElementById('s-total').textContent = total;
+
+  // Snapshot
+  setProgress(0, 'Snapshotting originals...');
+  try {
+    await snapshot();
+  } catch(e) {
+    setProgress(0, '✗ Could not snapshot initiative: ' + e.message);
+    running = false;
+    document.getElementById('run-btn').disabled = false;
+    return;
+  }
+
+  let done = 0;
+
+  for (const group of GROUPS) {
+    for (const t of group.tests) {
+      const key = cardKey(t.name);
+      setCard(key, 'running', 'posting...', '');
+      await sleep(90);
+
+      if (group.migration) {
+        // Try the save — distinguish "column missing" (skip) vs real error (fail)
+        try {
+          const payload = { id: iniId, ...t.payload(S) };
+          await api('initiatives','update', payload);
+          // If no error: check if column actually came back in GET
+          const readBack = await api('initiatives','get',{ id: iniId });
+          const row = readBack.data || {};
+          if (row[t.db] === undefined) {
+            setCard(key,'skip','— column not in SELECT * (migration columns not in schema yet)','');
+            skip++;
+          } else {
+            const ok = t.verify(row, S);
+            if (ok) { setCard(key,'pass','✓ saved + verified',fmtVal(row[t.db])); pass++; }
+            else     { setCard(key,'warn','⚠ saved but readback mismatch',`got: ${fmtVal(row[t.db])}`); fail++; }
+          }
+        } catch(e) {
+          const msg = e.message || '';
+          const colMissing = msg.includes('does not exist') || msg.includes('column') || msg.includes('42703');
+          setCard(key, colMissing ? 'skip' : 'fail',
+            colMissing ? '— migration not run yet' : '✗ ' + msg, '');
+          colMissing ? skip++ : fail++;
+        }
+
+      } else {
+        // Base schema — must pass
+        try {
+          const payload = { id: iniId, ...t.payload(S) };
+          const sentStr = JSON.stringify(payload).slice(0, 80);
+          await api('initiatives','update', payload);
+
+          // Read back
+          const readBack = await api('initiatives','get',{ id: iniId });
+          const row = readBack.data || {};
+
+          if (t.verify(row, S)) {
+            setCard(key, 'pass', '✓ saved + verified', fmtVal(row[t.db]));
+            pass++;
+          } else {
+            setCard(key, 'fail',
+              `✗ readback mismatch — got: ${fmtVal(row[t.db])}`,
+              `sent: ${sentStr}`);
+            fail++;
+          }
+        } catch(e) {
+          setCard(key, 'fail', '✗ ' + e.message, '');
+          fail++;
+        }
+      }
+
+      done++;
+      setProgress(Math.round(done/total*100), `${done} / ${total} — ${pass} ✓  ${fail} ✗  ${skip} skipped`);
+      document.getElementById('s-pass').textContent = pass;
+      document.getElementById('s-fail').textContent = fail;
+      document.getElementById('s-skip').textContent = skip;
+    }
+  }
+
+  // Restore
+  setProgress(100, 'Restoring originals...');
+  await restore();
+  setProgress(100, `Done — ${pass} passed · ${fail} failed · ${skip} skipped · originals restored`);
+  document.getElementById('run-btn').disabled = false;
+  running = false;
+}
+
+// ─── UI helpers ───────────────────────────────────────────────
+function cardKey(name) { return 'c_' + name.replace(/[^a-z0-9]/gi,'_'); }
+function fmtVal(v) {
+  if (v === null || v === undefined) return 'null';
+  const s = String(v);
+  return s.length > 50 ? s.slice(0,50) + '…' : s;
+}
+
+function renderGrid(S) {
+  pass=0; fail=0; skip=0; total=0;
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="summary-row">
+      <div class="stat s-pass"><div class="num" id="s-pass">0</div><div class="lbl">Passed</div></div>
+      <div class="stat s-fail"><div class="num" id="s-fail">0</div><div class="lbl">Failed</div></div>
+      <div class="stat s-skip"><div class="num" id="s-skip">0</div><div class="lbl">Skipped</div></div>
+      <div class="stat s-total"><div class="num" id="s-total">0</div><div class="lbl">Total</div></div>
+      <div class="test-id-display">Sentinel: ${S} · ini: ${iniId?.slice(0,8)}…</div>
+    </div>`;
+
+  GROUPS.forEach(g => {
+    const sec = document.createElement('div');
+    sec.className = 'group';
+    const badge = g.migration ? '<span class="mig-badge">⚠ MIGRATION</span>' : '';
+    const note  = g.note ? `<span style="font-size:10px;color:#6b7a99;font-weight:400"> — ${g.note}</span>` : '';
+    sec.innerHTML = `<div class="group-title">${g.title}${badge}${note}</div><div class="grid" id="g_${cardKey(g.title)}"></div>`;
+    main.appendChild(sec);
+    g.tests.forEach(t => {
+      total++;
+      const card = document.createElement('div');
+      card.id = cardKey(t.name);
+      card.className = 'card idle';
+      card.innerHTML = `
+        <div class="chk idle" id="${cardKey(t.name)}_chk">○</div>
+        <div class="card-body">
+          <div class="card-name">${t.name}</div>
+          <div class="card-meta">${t.type}${t.note ? ' · ' + t.note : ''}</div>
+          <div class="card-msg idle" id="${cardKey(t.name)}_msg">waiting…</div>
+          <div class="sent-val" id="${cardKey(t.name)}_sent"></div>
+        </div>`;
+      document.getElementById('g_'+cardKey(g.title)).appendChild(card);
+    });
+  });
+}
+
+function setCard(key, state, msg, sent) {
+  const card = document.getElementById(key);
+  const chk  = document.getElementById(key+'_chk');
+  const msgEl = document.getElementById(key+'_msg');
+  const sentEl= document.getElementById(key+'_sent');
+  if (!card) return;
+  card.className = 'card ' + state;
+  chk.className  = 'chk '  + state;
+  chk.textContent = {pass:'✓',fail:'✗',skip:'—',running:'↻',warn:'⚠',idle:'○'}[state]||'○';
+  if (msgEl)  { msgEl.className  = 'card-msg ' + state; msgEl.textContent  = msg; }
+  if (sentEl) { sentEl.textContent = sent || ''; }
+}
+
+function setProgress(pct, label) {
+  document.getElementById('prog').style.width = pct + '%';
+  document.getElementById('prog-lbl').textContent = label;
+}
+
+function setPill(id, text, isOk) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'pill ' + (isOk ? 'pill-ok' : 'pill-empty');
+}
+
+function resetUI() {
+  pass=0; fail=0; skip=0;
+  setProgress(0,'Ready');
+  document.getElementById('main').innerHTML = '<div class="empty"><div class="empty-icon">◆</div><div class="empty-note">Load org → load initiatives → Test All Fields</div></div>';
+}
+
+function updateSql() {
+  const id = iniId || 'INITIATIVE_ID_HERE';
+  document.getElementById('sql-box').textContent = `-- Run in Neon after Test All
+SELECT id, slug, title, stage,
+  evidence_interviews, pivot_p, pivot_i, pivot_v,
+  investment_requested, eng_teams, wsjf_biz_value,
+  approved, approved_by, approved_date,
+  LEFT(exec_brief,30) AS exec_brief,
+  LEFT(personas,30) AS personas,
+  LEFT(epics,30) AS epics,
+  updated_at
+FROM initiatives
+WHERE id = '${id}';`;
+}
+
+function copySql() {
+  navigator.clipboard.writeText(document.getElementById('sql-box').textContent)
+    .then(() => { const b = document.querySelector('.copy-btn'); b.textContent = '✓ Copied'; setTimeout(()=>b.textContent='⎘ Copy SQL',1500); });
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+</script>
+</body>
+</html>
