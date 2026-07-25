@@ -458,10 +458,9 @@ async function handleInitiatives(sql, action, payload) {
         pi_planning:     typeof raw.pi_planning === "string" ? raw.pi_planning : undefined,
         handoff_package: typeof raw.handoff_package === "string" ? raw.handoff_package : undefined,
       };
-      console.log("[PGI update] sanitized payload keys:", Object.keys(p));
       console.log("[PGI update] approved:", p.approved, "| type:", typeof p.approved);
-      const badKeys = Object.entries(p).filter(([k,v]) => v !== null && v !== undefined && typeof v === "object").map(([k])=>k);
-      if (badKeys.length) console.error("[PGI update] ❌ OBJECT VALUES STILL PRESENT:", badKeys);
+      // Replace undefined with null so Postgres can type all parameters
+      Object.keys(p).forEach(k => { if (p[k] === undefined) p[k] = null; });
 
       // ── Core update (base schema columns — always exist) ──────
       const rows = await sql`
