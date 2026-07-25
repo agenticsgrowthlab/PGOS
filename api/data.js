@@ -408,6 +408,8 @@ async function handleInitiatives(sql, action, payload) {
 
     case "update": {
       const p = payload;
+
+      // ── Core update (base schema columns — always exist) ──────
       const rows = await sql`
         UPDATE initiatives SET
           title           = COALESCE(${p.title}, title),
@@ -457,36 +459,60 @@ async function handleInitiatives(sql, action, payload) {
           handoff_package  = COALESCE(${p.handoff_package}, handoff_package),
           roadmap_start    = COALESCE(${p.roadmap_start || null}, roadmap_start),
           roadmap_end      = COALESCE(${p.roadmap_end || null}, roadmap_end),
-          bar_color        = COALESCE(${p.bar_color || null}, bar_color),
-          launch_date      = COALESCE(${p.launch_date || null}, launch_date),
-          adoption_rate    = COALESCE(${p.adoption_rate}, adoption_rate),
-          monthly_active_users = COALESCE(${p.monthly_active_users}, monthly_active_users),
-          daily_active_users   = COALESCE(${p.daily_active_users}, daily_active_users),
-          feature_utilization  = COALESCE(${p.feature_utilization}, feature_utilization),
-          nps_score        = COALESCE(${p.nps_score}, nps_score),
-          csat_score       = COALESCE(${p.csat_score}, csat_score),
-          survey_responses = COALESCE(${p.survey_responses}, survey_responses),
-          key_verbatims    = COALESCE(${p.key_verbatims}, key_verbatims),
-          call_deflection_pct  = COALESCE(${p.call_deflection_pct}, call_deflection_pct),
-          revenue_realized     = COALESCE(${p.revenue_realized}, revenue_realized),
-          cost_savings_realized = COALESCE(${p.cost_savings_realized}, cost_savings_realized),
-          target_met       = COALESCE(${p.target_met}, target_met),
-          measure_notes    = COALESCE(${p.measure_notes}, measure_notes),
-          lessons_learned  = COALESCE(${p.lessons_learned}, lessons_learned),
-          next_action      = COALESCE(${p.next_action}, next_action),
-          outcome_summary  = COALESCE(${p.outcome_summary}, outcome_summary),
-          contract_primary_metric    = COALESCE(${p.contract_primary_metric}, contract_primary_metric),
-          contract_baseline          = COALESCE(${p.contract_baseline}, contract_baseline),
-          contract_target            = COALESCE(${p.contract_target}, contract_target),
-          contract_secondary_metrics = COALESCE(${p.contract_secondary_metrics}, contract_secondary_metrics),
-          contract_telemetry_source  = COALESCE(${p.contract_telemetry_source}, contract_telemetry_source),
-          contract_review_window     = COALESCE(${p.contract_review_window}, contract_review_window),
-          contract_economic_outcome  = COALESCE(${p.contract_economic_outcome}, contract_economic_outcome),
-          contract_ai_narrative      = COALESCE(${p.contract_ai_narrative}, contract_ai_narrative),
-          contract_status            = COALESCE(${p.contract_status}, contract_status)
+          bar_color        = COALESCE(${p.bar_color || null}, bar_color)
         WHERE id = ${p.id}
         RETURNING *
-      `;
+      \`;
+
+      // ── Extended update (migration-added columns) ─────────────
+      // Wrapped separately so missing columns don't break the core save
+      try {
+        await sql\`
+          UPDATE initiatives SET
+            launch_date      = COALESCE(${p.launch_date || null}, launch_date),
+            adoption_rate    = COALESCE(${p.adoption_rate}, adoption_rate),
+            monthly_active_users = COALESCE(${p.monthly_active_users}, monthly_active_users),
+            daily_active_users   = COALESCE(${p.daily_active_users}, daily_active_users),
+            feature_utilization  = COALESCE(${p.feature_utilization}, feature_utilization),
+            nps_score        = COALESCE(${p.nps_score}, nps_score),
+            csat_score       = COALESCE(${p.csat_score}, csat_score),
+            survey_responses = COALESCE(${p.survey_responses}, survey_responses),
+            key_verbatims    = COALESCE(${p.key_verbatims}, key_verbatims),
+            call_deflection_pct  = COALESCE(${p.call_deflection_pct}, call_deflection_pct),
+            revenue_realized     = COALESCE(${p.revenue_realized}, revenue_realized),
+            cost_savings_realized = COALESCE(${p.cost_savings_realized}, cost_savings_realized),
+            target_met       = COALESCE(${p.target_met}, target_met),
+            measure_notes    = COALESCE(${p.measure_notes}, measure_notes),
+            lessons_learned  = COALESCE(${p.lessons_learned}, lessons_learned),
+            next_action      = COALESCE(${p.next_action}, next_action),
+            outcome_summary  = COALESCE(${p.outcome_summary}, outcome_summary)
+          WHERE id = ${p.id}
+        \`;
+      } catch (e) {
+        // Measure/outcome migration not yet run — core save still succeeded
+        console.warn("Extended update skipped (run measure_migration.sql):", e.message);
+      }
+
+      // ── Contract update (Stage 5.5 migration columns) ─────────
+      try {
+        await sql\`
+          UPDATE initiatives SET
+            contract_primary_metric    = COALESCE(${p.contract_primary_metric}, contract_primary_metric),
+            contract_baseline          = COALESCE(${p.contract_baseline}, contract_baseline),
+            contract_target            = COALESCE(${p.contract_target}, contract_target),
+            contract_secondary_metrics = COALESCE(${p.contract_secondary_metrics}, contract_secondary_metrics),
+            contract_telemetry_source  = COALESCE(${p.contract_telemetry_source}, contract_telemetry_source),
+            contract_review_window     = COALESCE(${p.contract_review_window}, contract_review_window),
+            contract_economic_outcome  = COALESCE(${p.contract_economic_outcome}, contract_economic_outcome),
+            contract_ai_narrative      = COALESCE(${p.contract_ai_narrative}, contract_ai_narrative),
+            contract_status            = COALESCE(${p.contract_status}, contract_status)
+          WHERE id = ${p.id}
+        \`;
+      } catch (e) {
+        // Contract migration not yet run — core save still succeeded
+        console.warn("Contract update skipped (run investment_contract_migration.sql):", e.message);
+      }
+
       return { data: rows[0] };
     }
 
