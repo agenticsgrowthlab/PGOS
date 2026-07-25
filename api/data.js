@@ -407,178 +407,139 @@ async function handleInitiatives(sql, action, payload) {
     }
 
     case "update": {
-      // Sanitize payload — extract only known scalar columns.
-      // Defensive against stale debounce snapshots and nested objects from frontend.
-      const raw = payload;
-      const p = {
-        id:               raw.id,
-        title:            typeof raw.title === "string" ? raw.title : undefined,
-        stage:            typeof raw.stage === "string" ? raw.stage : undefined,
-        source:           typeof raw.source === "string" ? raw.source : undefined,
-        source_detail:    typeof raw.source_detail === "string" ? raw.source_detail : undefined,
-        problem:          typeof raw.problem === "string" ? raw.problem : undefined,
-        opportunity:      typeof raw.opportunity === "string" ? raw.opportunity : undefined,
-        okr_id:           raw.okr_id !== undefined ? raw.okr_id : undefined,
-        theme_id:         raw.theme_id !== undefined ? raw.theme_id : undefined,
-        capability_id:    raw.capability_id !== undefined ? raw.capability_id : undefined,
-        pivot_p:          typeof raw.pivot_p === "number" ? raw.pivot_p : undefined,
-        pivot_i:          typeof raw.pivot_i === "number" ? raw.pivot_i : undefined,
-        pivot_v:          typeof raw.pivot_v === "number" ? raw.pivot_v : undefined,
-        pivot_o:          typeof raw.pivot_o === "number" ? raw.pivot_o : undefined,
-        pivot_t:          typeof raw.pivot_t === "number" ? raw.pivot_t : undefined,
-        evidence_interviews:     typeof raw.evidence_interviews === "string" ? raw.evidence_interviews : undefined,
-        evidence_pain_confirmed: typeof raw.evidence_pain_confirmed === "string" ? raw.evidence_pain_confirmed : undefined,
-        evidence_revenue_opp:    typeof raw.evidence_revenue_opp === "string" ? raw.evidence_revenue_opp : undefined,
-        evidence_cost_savings:   typeof raw.evidence_cost_savings === "string" ? raw.evidence_cost_savings : undefined,
-        evidence_competitive:    typeof raw.evidence_competitive === "string" ? raw.evidence_competitive : undefined,
-        evidence_nps:            typeof raw.evidence_nps === "string" ? raw.evidence_nps : undefined,
-        investment_requested:    typeof raw.investment_requested === "number" ? raw.investment_requested : undefined,
-        investment_approved:     typeof raw.investment_approved === "number" ? raw.investment_approved : undefined,
-        eng_teams:    typeof raw.eng_teams === "number" ? raw.eng_teams : undefined,
-        eng_sprints:  typeof raw.eng_sprints === "number" ? raw.eng_sprints : undefined,
-        eng_estimate: typeof raw.eng_estimate === "number" ? raw.eng_estimate : undefined,
-        approved:     typeof raw.approved === "boolean" ? raw.approved : undefined,
-        approved_by:  typeof raw.approved_by === "string" ? raw.approved_by : undefined,
-        approved_date: typeof raw.approved_date === "string" ? raw.approved_date : undefined,
-        wsjf_biz_value:      typeof raw.wsjf_biz_value === "number" ? raw.wsjf_biz_value : undefined,
-        wsjf_time_crit:      typeof raw.wsjf_time_crit === "number" ? raw.wsjf_time_crit : undefined,
-        wsjf_risk_reduction: typeof raw.wsjf_risk_reduction === "number" ? raw.wsjf_risk_reduction : undefined,
-        wsjf_effort:         typeof raw.wsjf_effort === "number" ? raw.wsjf_effort : undefined,
-        pivot_coach:     typeof raw.pivot_coach === "string" ? raw.pivot_coach : undefined,
-        eng_estimate_ai: typeof raw.eng_estimate_ai === "string" ? raw.eng_estimate_ai : undefined,
-        exec_brief:      typeof raw.exec_brief === "string" ? raw.exec_brief : undefined,
-        one_pager:       typeof raw.one_pager === "string" ? raw.one_pager : undefined,
-        personas:        typeof raw.personas === "string" ? raw.personas : undefined,
-        current_journey: typeof raw.current_journey === "string" ? raw.current_journey : undefined,
-        future_journey:  typeof raw.future_journey === "string" ? raw.future_journey : undefined,
-        jtbd:            typeof raw.jtbd === "string" ? raw.jtbd : undefined,
-        use_cases:       typeof raw.use_cases === "string" ? raw.use_cases : undefined,
-        epics:           typeof raw.epics === "string" ? raw.epics : undefined,
-        risk_register:   typeof raw.risk_register === "string" ? raw.risk_register : undefined,
-        pi_planning:     typeof raw.pi_planning === "string" ? raw.pi_planning : undefined,
-        handoff_package: typeof raw.handoff_package === "string" ? raw.handoff_package : undefined,
-      };
-      console.log("[PGI update] approved:", p.approved, "| type:", typeof p.approved);
-      // Replace undefined with null so Postgres can type all parameters
-      Object.keys(p).forEach(k => { if (p[k] === undefined) p[k] = null; });
+      // Extract only known scalar columns with correct types.
+      // Never trust the frontend bundle — sanitize everything server-side.
+      const r = payload;
+      const id = r.id;
+      if (!id) throw new Error("initiatives update requires id");
 
-      // ── Core update (base schema columns — always exist) ──────
+      // Helper: safe string (returns null if not a non-empty string)
+      const str  = (v) => (typeof v === "string") ? v : null;
+      // Helper: safe number cast (returns null if not a finite number)
+      const num  = (v) => (typeof v === "number" && isFinite(v)) ? v : null;
+      // Helper: safe boolean — ONLY accept explicit true/false, never from debounce
+      // approved is handled by its own direct write — never comes through here
+
+      // Cast helpers — explicitly type null so Postgres never sees an untyped $N
+      const numN  = (v) => num(v) !== null ? num(v) : null;
+      const asInt = (v) => sql`${numN(v)}::INTEGER`;
+      const asBig = (v) => sql`${numN(v)}::BIGINT`;
+      const asNum = (v) => sql`${numN(v)}::NUMERIC`;
+      const asTxt = (v) => sql`${str(v)}::TEXT`;
+
       const rows = await sql`
         UPDATE initiatives SET
-          title           = COALESCE(${p.title}, title),
-          stage           = COALESCE(${p.stage}, stage),
-          source          = COALESCE(${p.source}, source),
-          source_detail   = COALESCE(${p.source_detail}, source_detail),
-          problem         = COALESCE(${p.problem}, problem),
-          opportunity     = COALESCE(${p.opportunity}, opportunity),
-          okr_id          = ${p.okr_id !== undefined ? p.okr_id : null}::uuid,
-          theme_id        = ${p.theme_id !== undefined ? p.theme_id : null}::uuid,
-          capability_id   = ${p.capability_id !== undefined ? p.capability_id : null}::uuid,
-          pivot_p         = COALESCE(${p.pivot_p}, pivot_p),
-          pivot_i         = COALESCE(${p.pivot_i}, pivot_i),
-          pivot_v         = COALESCE(${p.pivot_v}, pivot_v),
-          pivot_o         = COALESCE(${p.pivot_o}, pivot_o),
-          pivot_t         = COALESCE(${p.pivot_t}, pivot_t),
-          evidence_interviews      = COALESCE(${p.evidence_interviews}, evidence_interviews),
-          evidence_pain_confirmed  = COALESCE(${p.evidence_pain_confirmed}, evidence_pain_confirmed),
-          evidence_revenue_opp     = COALESCE(${p.evidence_revenue_opp}, evidence_revenue_opp),
-          evidence_cost_savings    = COALESCE(${p.evidence_cost_savings}, evidence_cost_savings),
-          evidence_competitive     = COALESCE(${p.evidence_competitive}, evidence_competitive),
-          evidence_nps             = COALESCE(${p.evidence_nps}, evidence_nps),
-          investment_requested     = COALESCE(${p.investment_requested}, investment_requested),
-          investment_approved      = COALESCE(${p.investment_approved}, investment_approved),
-          eng_teams       = COALESCE(${p.eng_teams}, eng_teams),
-          eng_sprints     = COALESCE(${p.eng_sprints}, eng_sprints),
-          eng_estimate    = COALESCE(${p.eng_estimate}, eng_estimate),
-          approved        = CASE WHEN ${p.approved} IS NOT NULL THEN ${p.approved}::boolean ELSE approved END,
-          approved_by     = COALESCE(${p.approved_by}, approved_by),
-          approved_date   = COALESCE(${p.approved_date}, approved_date),
-          wsjf_biz_value       = COALESCE(${p.wsjf_biz_value}, wsjf_biz_value),
-          wsjf_time_crit       = COALESCE(${p.wsjf_time_crit}, wsjf_time_crit),
-          wsjf_risk_reduction  = COALESCE(${p.wsjf_risk_reduction}, wsjf_risk_reduction),
-          wsjf_effort          = COALESCE(${p.wsjf_effort}, wsjf_effort),
-          pivot_coach      = COALESCE(${p.pivot_coach}, pivot_coach),
-          eng_estimate_ai  = COALESCE(${p.eng_estimate_ai}, eng_estimate_ai),
-          exec_brief       = COALESCE(${p.exec_brief}, exec_brief),
-          one_pager        = COALESCE(${p.one_pager}, one_pager),
-          personas         = COALESCE(${p.personas}, personas),
-          current_journey  = COALESCE(${p.current_journey}, current_journey),
-          future_journey   = COALESCE(${p.future_journey}, future_journey),
-          jtbd             = COALESCE(${p.jtbd}, jtbd),
-          use_cases        = COALESCE(${p.use_cases}, use_cases),
-          epics            = COALESCE(${p.epics}, epics),
-          risk_register    = COALESCE(${p.risk_register}, risk_register),
-          pi_planning      = COALESCE(${p.pi_planning}, pi_planning),
-          handoff_package  = COALESCE(${p.handoff_package}, handoff_package)
-        WHERE id = ${p.id}
+          title           = COALESCE(${asTxt(r.title)},            title),
+          stage           = COALESCE(${asTxt(r.stage)},            stage),
+          source          = COALESCE(${asTxt(r.source)},           source),
+          source_detail   = COALESCE(${asTxt(r.source_detail)},    source_detail),
+          problem         = COALESCE(${asTxt(r.problem)},          problem),
+          opportunity     = COALESCE(${asTxt(r.opportunity)},      opportunity),
+          okr_id          = ${r.okr_id !== undefined ? (r.okr_id || null) : sql`okr_id`}::uuid,
+          theme_id        = ${r.theme_id !== undefined ? (r.theme_id || null) : sql`theme_id`}::uuid,
+          capability_id   = ${r.capability_id !== undefined ? (r.capability_id || null) : sql`capability_id`}::uuid,
+          pivot_p         = COALESCE(${asNum(r.pivot_p)},          pivot_p),
+          pivot_i         = COALESCE(${asNum(r.pivot_i)},          pivot_i),
+          pivot_v         = COALESCE(${asNum(r.pivot_v)},          pivot_v),
+          pivot_o         = COALESCE(${asNum(r.pivot_o)},          pivot_o),
+          pivot_t         = COALESCE(${asNum(r.pivot_t)},          pivot_t),
+          evidence_interviews     = COALESCE(${asTxt(r.evidence_interviews)},     evidence_interviews),
+          evidence_pain_confirmed = COALESCE(${asTxt(r.evidence_pain_confirmed)}, evidence_pain_confirmed),
+          evidence_revenue_opp    = COALESCE(${asTxt(r.evidence_revenue_opp)},    evidence_revenue_opp),
+          evidence_cost_savings   = COALESCE(${asTxt(r.evidence_cost_savings)},   evidence_cost_savings),
+          evidence_competitive    = COALESCE(${asTxt(r.evidence_competitive)},    evidence_competitive),
+          evidence_nps            = COALESCE(${asTxt(r.evidence_nps)},            evidence_nps),
+          investment_requested    = COALESCE(${asBig(r.investment_requested)},    investment_requested),
+          investment_approved     = COALESCE(${asBig(r.investment_approved)},     investment_approved),
+          eng_teams               = COALESCE(${asInt(r.eng_teams)},               eng_teams),
+          eng_sprints             = COALESCE(${asInt(r.eng_sprints)},             eng_sprints),
+          eng_estimate            = COALESCE(${asBig(r.eng_estimate)},            eng_estimate),
+          wsjf_biz_value          = COALESCE(${asInt(r.wsjf_biz_value)},          wsjf_biz_value),
+          wsjf_time_crit          = COALESCE(${asInt(r.wsjf_time_crit)},          wsjf_time_crit),
+          wsjf_risk_reduction     = COALESCE(${asInt(r.wsjf_risk_reduction)},     wsjf_risk_reduction),
+          wsjf_effort             = COALESCE(${asInt(r.wsjf_effort)},             wsjf_effort),
+          pivot_coach             = COALESCE(${asTxt(r.pivot_coach)},             pivot_coach),
+          eng_estimate_ai         = COALESCE(${asTxt(r.eng_estimate_ai)},         eng_estimate_ai),
+          exec_brief              = COALESCE(${asTxt(r.exec_brief)},              exec_brief),
+          one_pager               = COALESCE(${asTxt(r.one_pager)},               one_pager),
+          personas                = COALESCE(${asTxt(r.personas)},                personas),
+          current_journey         = COALESCE(${asTxt(r.current_journey)},         current_journey),
+          future_journey          = COALESCE(${asTxt(r.future_journey)},          future_journey),
+          jtbd                    = COALESCE(${asTxt(r.jtbd)},                    jtbd),
+          use_cases               = COALESCE(${asTxt(r.use_cases)},               use_cases),
+          epics                   = COALESCE(${asTxt(r.epics)},                   epics),
+          risk_register           = COALESCE(${asTxt(r.risk_register)},           risk_register),
+          pi_planning             = COALESCE(${asTxt(r.pi_planning)},             pi_planning),
+          handoff_package         = COALESCE(${asTxt(r.handoff_package)},         handoff_package)
+        WHERE id = ${id}
         RETURNING *
       `;
 
-      // ── Roadmap update (migration-added columns) ──────────────
-      try {
+      // approved has its own direct write path (InitiativeDetail.jsx)
+      // Only update it here if explicitly passed as a boolean (direct write, not debounce)
+      if (typeof r.approved === "boolean") {
         await sql`
           UPDATE initiatives SET
-            roadmap_start = COALESCE(${p.roadmap_start || null}, roadmap_start),
-            roadmap_end   = COALESCE(${p.roadmap_end || null}, roadmap_end),
-            bar_color     = COALESCE(${p.bar_color || null}, bar_color)
-          WHERE id = ${p.id}
+            approved      = ${r.approved}::BOOLEAN,
+            approved_by   = ${str(r.approved_by) || ''}::TEXT,
+            approved_date = ${str(r.approved_date) || ''}::TEXT
+          WHERE id = ${id}
         `;
-      } catch (e) {
-        console.warn("Roadmap update skipped (run roadmap migration):", e.message);
       }
 
-      // ── Extended update (migration-added columns) ─────────────
-      // Wrapped separately so missing columns don't break the core save
+      // Migration columns — wrapped in try/catch so missing columns never break core save
       try {
         await sql`
           UPDATE initiatives SET
-            launch_date      = COALESCE(${p.launch_date || null}, launch_date),
-            adoption_rate    = COALESCE(${p.adoption_rate}, adoption_rate),
-            monthly_active_users = COALESCE(${p.monthly_active_users}, monthly_active_users),
-            daily_active_users   = COALESCE(${p.daily_active_users}, daily_active_users),
-            feature_utilization  = COALESCE(${p.feature_utilization}, feature_utilization),
-            nps_score        = COALESCE(${p.nps_score}, nps_score),
-            csat_score       = COALESCE(${p.csat_score}, csat_score),
-            survey_responses = COALESCE(${p.survey_responses}, survey_responses),
-            key_verbatims    = COALESCE(${p.key_verbatims}, key_verbatims),
-            call_deflection_pct  = COALESCE(${p.call_deflection_pct}, call_deflection_pct),
-            revenue_realized     = COALESCE(${p.revenue_realized}, revenue_realized),
-            cost_savings_realized = COALESCE(${p.cost_savings_realized}, cost_savings_realized),
-            target_met       = COALESCE(${p.target_met}, target_met),
-            measure_notes    = COALESCE(${p.measure_notes}, measure_notes),
-            lessons_learned  = COALESCE(${p.lessons_learned}, lessons_learned),
-            next_action      = COALESCE(${p.next_action}, next_action),
-            outcome_summary  = COALESCE(${p.outcome_summary}, outcome_summary)
-          WHERE id = ${p.id}
+            roadmap_start = ${r.roadmap_start || null},
+            roadmap_end   = ${r.roadmap_end || null},
+            bar_color     = ${str(r.bar_color)}
+          WHERE id = ${id}
         `;
-      } catch (e) {
-        // Measure/outcome migration not yet run — core save still succeeded
-        console.warn("Extended update skipped (run measure_migration.sql):", e.message);
-      }
+      } catch (e) { /* roadmap migration not run yet */ }
 
-      // ── Contract update (Stage 5.5 migration columns) ─────────
       try {
         await sql`
           UPDATE initiatives SET
-            contract_primary_metric    = COALESCE(${p.contract_primary_metric}, contract_primary_metric),
-            contract_baseline          = COALESCE(${p.contract_baseline}, contract_baseline),
-            contract_target            = COALESCE(${p.contract_target}, contract_target),
-            contract_secondary_metrics = COALESCE(${p.contract_secondary_metrics}, contract_secondary_metrics),
-            contract_telemetry_source  = COALESCE(${p.contract_telemetry_source}, contract_telemetry_source),
-            contract_review_window     = COALESCE(${p.contract_review_window}, contract_review_window),
-            contract_economic_outcome  = COALESCE(${p.contract_economic_outcome}, contract_economic_outcome),
-            contract_ai_narrative      = COALESCE(${p.contract_ai_narrative}, contract_ai_narrative),
-            contract_status            = COALESCE(${p.contract_status}, contract_status)
-          WHERE id = ${p.id}
+            launch_date           = ${r.launch_date || null},
+            adoption_rate         = ${num(r.adoption_rate)},
+            monthly_active_users  = ${num(r.monthly_active_users)},
+            daily_active_users    = ${num(r.daily_active_users)},
+            feature_utilization   = ${num(r.feature_utilization)},
+            nps_score             = ${num(r.nps_score)},
+            csat_score            = ${num(r.csat_score)},
+            survey_responses      = ${num(r.survey_responses)},
+            key_verbatims         = ${r.key_verbatims || null},
+            call_deflection_pct   = ${num(r.call_deflection_pct)},
+            revenue_realized      = ${num(r.revenue_realized)},
+            cost_savings_realized = ${num(r.cost_savings_realized)},
+            target_met            = ${typeof r.target_met === "boolean" ? r.target_met : null},
+            measure_notes         = ${str(r.measure_notes)},
+            lessons_learned       = ${str(r.lessons_learned)},
+            next_action           = ${str(r.next_action)},
+            outcome_summary       = ${str(r.outcome_summary)}
+          WHERE id = ${id}
         `;
-      } catch (e) {
-        // Contract migration not yet run — core save still succeeded
-        console.warn("Contract update skipped (run investment_contract_migration.sql):", e.message);
-      }
+      } catch (e) { /* measure migration not run yet */ }
+
+      try {
+        await sql`
+          UPDATE initiatives SET
+            contract_primary_metric    = ${str(r.contract_primary_metric)},
+            contract_baseline          = ${str(r.contract_baseline)},
+            contract_target            = ${str(r.contract_target)},
+            contract_secondary_metrics = ${str(r.contract_secondary_metrics)},
+            contract_telemetry_source  = ${str(r.contract_telemetry_source)},
+            contract_review_window     = ${num(r.contract_review_window)},
+            contract_economic_outcome  = ${str(r.contract_economic_outcome)},
+            contract_ai_narrative      = ${str(r.contract_ai_narrative)},
+            contract_status            = ${str(r.contract_status)}
+          WHERE id = ${id}
+        `;
+      } catch (e) { /* contract migration not run yet */ }
 
       return { data: rows[0] };
     }
-
     case "delete": {
       await sql`DELETE FROM initiatives WHERE id=${payload.id}`;
       return { data: { id: payload.id } };
