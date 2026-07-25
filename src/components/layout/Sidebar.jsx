@@ -11,6 +11,7 @@ export function Sidebar({ view, setView }) {
   // New org modal state
   const [showNewOrgModal, setShowNewOrgModal] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
+  const [newOrgWebsite, setNewOrgWebsite] = useState("");
   const [creatingOrg, setCreatingOrg] = useState(false);
   const [bootstrapStep, setBootstrapStep] = useState(""); // progress message
 
@@ -28,7 +29,10 @@ export function Sidebar({ view, setView }) {
       const aiRes = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "bootstrap_company", payload: { companyName: name } }),
+        body: JSON.stringify({
+          action: "bootstrap_company",
+          payload: { companyName: name, website: newOrgWebsite.trim() },
+        }),
       });
       const aiData = await aiRes.json();
 
@@ -46,6 +50,7 @@ export function Sidebar({ view, setView }) {
 
       setShowNewOrgModal(false);
       setNewOrgName("");
+      setNewOrgWebsite("");
       setView("foundation");
     } catch (err) {
       console.error("Create org error:", err);
@@ -242,8 +247,26 @@ export function Sidebar({ view, setView }) {
             autoFocus
             value={newOrgName}
             onChange={e => setNewOrgName(e.target.value)}
+            onKeyDown={e => e.key === "Tab" && e.preventDefault()}
+            placeholder="Company name — e.g. Datavant"
+            disabled={creatingOrg}
+            style={{
+              width: "100%", padding: "10px 12px",
+              background: T.ink3, border: `1px solid ${T.border}`,
+              borderRadius: 8, color: T.white, fontSize: 14,
+              outline: "none", boxSizing: "border-box",
+              opacity: creatingOrg ? 0.5 : 1,
+            }}
+          />
+
+          <div style={{ fontSize: 10, color: T.muted, margin: "10px 0 4px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Website <span style={{ color: T.steel, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— helps AI find the right company</span>
+          </div>
+          <input
+            value={newOrgWebsite}
+            onChange={e => setNewOrgWebsite(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleCreateOrg()}
-            placeholder="e.g. Datavant"
+            placeholder="e.g. datavant.com"
             disabled={creatingOrg}
             style={{
               width: "100%", padding: "10px 12px",
@@ -272,7 +295,7 @@ export function Sidebar({ view, setView }) {
           )}
           <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
             <button
-              onClick={() => { setShowNewOrgModal(false); setNewOrgName(""); }}
+              onClick={() => { setShowNewOrgModal(false); setNewOrgName(""); setNewOrgWebsite(""); }}
               style={{
                 padding: "8px 16px", borderRadius: 6,
                 border: `1px solid ${T.border}`, background: "transparent",

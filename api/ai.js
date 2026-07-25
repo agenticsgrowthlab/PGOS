@@ -344,7 +344,12 @@ const TOKEN_MAP = {
 };
 
 // ─── Bootstrap company prompt ─────────────────────────────────
-function buildBootstrapPrompt(companyName) {
+function buildBootstrapPrompt(companyName, website) {
+  const siteRef = website ? ` at ${website}` : "";
+  const siteInstruction = website
+    ? `The company website is ${website} — use this as your primary source. Crawl it directly to get accurate mission, products, and positioning.`
+    : `Search the web to find accurate information about this company.`;
+
   return {
     system: `You are a senior product intelligence analyst. Your job is to research a company and return structured JSON data that will be loaded into a product management platform. You must return ONLY valid JSON — no markdown, no explanation, no preamble. The JSON must exactly match the schema provided.
 
@@ -359,7 +364,7 @@ SCHEMA RULES (critical — violations break the database):
 - No apostrophes in text fields — use plain English alternatives
 - No em-dashes — use a hyphen instead`,
 
-    userContent: `Research ${companyName} thoroughly using your knowledge and return a JSON object with this exact structure:
+    userContent: `Research ${companyName}${siteRef} and return a JSON object with this exact structure. ${siteInstruction}
 
 {
   "org": {
@@ -458,10 +463,10 @@ export default async function handler(req, res) {
   try {
     // ── Bootstrap company: special JSON-returning action ────────
     if (action === "bootstrap_company") {
-      const { companyName } = payload;
+      const { companyName, website } = payload;
       if (!companyName) return res.status(400).json({ error: "companyName required" });
 
-      const { system, userContent } = buildBootstrapPrompt(companyName);
+      const { system, userContent } = buildBootstrapPrompt(companyName, website);
 
       const response = await fetch(ANTHROPIC_URL, {
         method: "POST",
