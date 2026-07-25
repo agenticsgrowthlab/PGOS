@@ -533,15 +533,15 @@ async function handleInitiatives(sql, action, payload) {
       try {
         await sql`
           UPDATE initiatives SET
-            contract_primary_metric    = ${str(r.contract_primary_metric)}::text,
-            contract_baseline          = ${str(r.contract_baseline)}::text,
-            contract_target            = ${str(r.contract_target)}::text,
-            contract_secondary_metrics = ${str(r.contract_secondary_metrics)}::text,
-            contract_telemetry_source  = ${str(r.contract_telemetry_source)}::text,
-            contract_review_window     = ${num(r.contract_review_window)}::integer,
-            contract_economic_outcome  = ${str(r.contract_economic_outcome)}::text,
-            contract_ai_narrative      = ${str(r.contract_ai_narrative)}::text,
-            contract_status            = ${str(r.contract_status)}::text
+            contract_primary_metric    = COALESCE(${str(r.contract_primary_metric)}::text,    contract_primary_metric),
+            contract_baseline          = COALESCE(${str(r.contract_baseline)}::text,          contract_baseline),
+            contract_target            = COALESCE(${str(r.contract_target)}::text,            contract_target),
+            contract_secondary_metrics = COALESCE(${str(r.contract_secondary_metrics)}::text, contract_secondary_metrics),
+            contract_telemetry_source  = COALESCE(${str(r.contract_telemetry_source)}::text,  contract_telemetry_source),
+            contract_review_window     = COALESCE(${num(r.contract_review_window)}::integer,  contract_review_window),
+            contract_economic_outcome  = COALESCE(${str(r.contract_economic_outcome)}::text,  contract_economic_outcome),
+            contract_ai_narrative      = COALESCE(${str(r.contract_ai_narrative)}::text,      contract_ai_narrative),
+            contract_status            = COALESCE(${str(r.contract_status)}::text,            contract_status)
           WHERE id = ${id}
         `;
       } catch (e) { console.error('[contract]', e.message); }
