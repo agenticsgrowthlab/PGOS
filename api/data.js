@@ -517,7 +517,10 @@ async function handleInitiatives(sql, action, payload) {
             nps_score             = COALESCE(${num(r.nps_score)}::integer,            nps_score),
             csat_score            = COALESCE(${num(r.csat_score)}::numeric,           csat_score),
             survey_responses      = COALESCE(${num(r.survey_responses)}::integer,     survey_responses),
-            key_verbatims         = COALESCE(${r.key_verbatims || null}::text[],      key_verbatims),
+            key_verbatims         = COALESCE(${
+              Array.isArray(r.key_verbatims) ? r.key_verbatims :
+              (typeof r.key_verbatims === 'string' ? JSON.parse(r.key_verbatims) : null)
+            }::text[],      key_verbatims),
             call_deflection_pct   = COALESCE(${num(r.call_deflection_pct)}::numeric,  call_deflection_pct),
             revenue_realized      = COALESCE(${num(r.revenue_realized)}::numeric,     revenue_realized),
             cost_savings_realized = COALESCE(${num(r.cost_savings_realized)}::numeric, cost_savings_realized),

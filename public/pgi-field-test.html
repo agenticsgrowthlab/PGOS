@@ -346,7 +346,7 @@ const GROUPS = [
       { name:'target_met → true',     db:'target_met',            type:'BOOLEAN', payload:()=>({target_met:true}),                     verify:(r)=>r.target_met===true },
       { name:'measure_notes',         db:'measure_notes',         type:'TEXT',    payload:s=>({measure_notes:'TMN_'+s}),               verify:(r,s)=>r.measure_notes==='TMN_'+s },
       { name:'key_verbatims (array)', db:'key_verbatims',         type:'TEXT[]',
-        payload:s=>({ key_verbatims: JSON.stringify(['VERB_A_'+s,'VERB_B_'+s]) }),
+        payload:s=>({ key_verbatims: ['VERB_A_'+s,'VERB_B_'+s] }),
         verify:(r,s)=>{ try { const a=JSON.parse(r.key_verbatims||'[]'); return a.some(v=>v.includes('VERB_A_'+s)); } catch(e){ return false; } },
         note:'Sent as JSON string — check if API parses array correctly' },
     ]
