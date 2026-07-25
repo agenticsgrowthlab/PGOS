@@ -435,7 +435,7 @@ async function handleInitiatives(sql, action, payload) {
           eng_teams       = COALESCE(${p.eng_teams}, eng_teams),
           eng_sprints     = COALESCE(${p.eng_sprints}, eng_sprints),
           eng_estimate    = COALESCE(${p.eng_estimate}, eng_estimate),
-          approved        = COALESCE(${p.approved}, approved),
+          approved        = CASE WHEN ${p.approved} IS NOT NULL THEN ${p.approved}::boolean ELSE approved END,
           approved_by     = COALESCE(${p.approved_by}, approved_by),
           approved_date   = COALESCE(${p.approved_date}, approved_date),
           wsjf_biz_value       = COALESCE(${p.wsjf_biz_value}, wsjf_biz_value),
