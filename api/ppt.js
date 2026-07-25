@@ -344,6 +344,63 @@ async function buildCompetitors(sql, org) {
   return pres;
 }
 
+async function buildDeliveryReadiness(sql, org) {
+  const inis = await sql`
+    SELECT * FROM initiatives
+    WHERE org_id=${org.id}
+    AND contract_primary_metric != ''
+    ORDER BY sort_order
+  `;
+
+  const pres = makePres("Delivery Readiness");
+  addCover(pres, "Delivery Readiness — Investment Contracts", org.name,
+    new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }));
+
+  if (!inis.length) {
+    contentSlide(pres, "No Contracts Defined Yet", [
+      { label: "Next Step", value: "Complete the Investment Contract for each approved initiative before delivery begins." }
+    ]);
+    return pres;
+  }
+
+  // Summary slide
+  const confirmed = inis.filter(i => i.contract_status === "confirmed");
+  contentSlide(pres, "Investment Contract Summary", [
+    { label: "Total Contracts", value: String(inis.length) },
+    { label: "Confirmed", value: String(confirmed.length) },
+    { label: "Draft", value: String(inis.length - confirmed.length) },
+    { label: "Total Investment", value: `$${(inis.reduce((s, i) => s + (i.investment_approved || 0), 0) / 1000000).toFixed(1)}M approved` },
+  ], { subtitle: "Measurement agreements defined before delivery begins" });
+
+  // One slide per initiative with a contract
+  inis.forEach(ini => {
+    let secondary = [];
+    try { secondary = JSON.parse(ini.contract_secondary_metrics || "[]"); } catch {}
+
+    const items = [
+      { label: "Primary Metric", value: ini.contract_primary_metric || "—" },
+      { label: "Baseline → Target", value: `${ini.contract_baseline || "—"} → ${ini.contract_target || "—"}` },
+      { label: "Investment Approved", value: `$${((ini.investment_approved || 0) / 1000000).toFixed(2)}M` },
+      { label: "Review Window", value: `${ini.contract_review_window || 90} days post-launch` },
+      { label: "Telemetry Source", value: ini.contract_telemetry_source || "—" },
+      { label: "Economic Outcome", value: ini.contract_economic_outcome || "—" },
+      { label: "Status", value: ini.contract_status === "confirmed" ? "✓ Confirmed" : "Draft" },
+    ];
+
+    if (secondary.length) {
+      secondary.forEach((sm, i) => {
+        items.push({ label: `Secondary ${i + 1}`, value: `${sm.metric}: ${sm.baseline || "—"} → ${sm.target || "—"}` });
+      });
+    }
+
+    contentSlide(pres, `${ini.slug} · ${ini.title}`, items, {
+      subtitle: ini.contract_ai_narrative || ini.problem || "",
+    });
+  });
+
+  return pres;
+}
+
 async function buildDelivery(sql, org) {
   const [inis, prefs] = await Promise.all([
     sql`SELECT * FROM initiatives WHERE org_id=${org.id} AND approved=true ORDER BY sort_order`,
@@ -588,7 +645,8 @@ const PAGE_MAP = {
   execreview: { builder: (s,o) => buildInitiatives(s,o,"review","Executive Review — Stage 3"), filename: "PGOS_ExecReview.pptx" },
   definition: { builder: (s,o) => buildInitiatives(s,o,"definition","Product Definition — Stage 5"), filename: "PGOS_Definition.pptx" },
   portfolio:  { builder: buildPortfolio,    filename: "PGOS_Portfolio.pptx" },
-  delivery:   { builder: buildDelivery,     filename: "PGOS_PIPlanning.pptx" },
+  delivery:   { builder: buildDelivery,          filename: "PGI_PIPlanning.pptx" },
+  investment_contract: { builder: buildDeliveryReadiness, filename: "PGI_DeliveryReadiness.pptx" },
   competitors:{ builder: buildCompetitors,  filename: "PGOS_CompetitiveAnalysis.pptx" },
   leadership: { builder: buildLeadership,   filename: "PGOS_Leadership_Overview.pptx" },
   measure:    { builder: buildMeasure,       filename: "PGOS_Measure_Stage8.pptx" },

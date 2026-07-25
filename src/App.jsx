@@ -10,7 +10,6 @@ import Measure from "./pages/Measure";
 import OutcomeSummary from "./pages/OutcomeSummary";
 import { RefFramework, RefGuide, ScoreMath } from "./pages/References";
 import { T, css, stageLabel, stageColor } from "./lib/tokens";
-import { Sidebar } from "./components/layout/Sidebar";
 
 // ─── PPT Download Button ─────────────────────────────────────
 function DownloadPPTBtn({ page, label, gold }) {
@@ -21,6 +20,7 @@ function DownloadPPTBtn({ page, label, gold }) {
     dashboard: "dashboard", foundation: "foundation",
     ideas: "ideas", discovery: "discovery", execreview: "execreview",
     portfolio: "portfolio", definition: "definition",
+    investment_contract: "investment_contract",
     delivery: "delivery", handoff: "handoff",
     ref_framework: null, ref_guide: null, chatty_note: null,
     leadership: "leadership",
@@ -139,7 +139,7 @@ function Inner() {
               dashboard: "Dashboard", foundation: "Foundation",
               ideas: "Ideas · Stage 1", discovery: "Discovery · Stage 2",
               execreview: "Executive Review · Stage 3", portfolio: "Portfolio · Stage 4",
-              definition: "Product Definition · Stage 5", investment_contract: "Delivery Readiness · Stage 5.5", delivery: "Delivery · Stage 6",
+              definition: "Product Definition · Stage 5", investment_contract: "Investment Contract · Stage 5.5", delivery: "Delivery · Stage 6",
               handoff: "Handoff · Stage 7", measure: "Measure · Stage 8",
               outcome: "Outcome Summary · Stage 9", ref_framework: "NCM PM Framework",
               ref_guide: "How To Use PGI",

@@ -159,7 +159,7 @@ export default function InvestmentContract() {
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ ...css.h2, marginBottom: 4 }}>
-          Delivery Readiness
+          Investment Contract
           {isConfirmed && (
             <span style={{ marginLeft: 12, fontSize: 11, fontWeight: 700,
               color: T.green, border: `1px solid ${T.green}`, borderRadius: 10,
@@ -169,7 +169,7 @@ export default function InvestmentContract() {
           )}
         </h1>
         <p style={css.sub}>
-          Define what success looks like before delivery begins. AI generates your measurement contract from everything we know about this initiative.
+          Define what success looks like before delivery begins. This contract becomes the measurement standard for Stage 8 · Measure.
         </p>
       </div>
 
@@ -182,20 +182,26 @@ export default function InvestmentContract() {
         </div>
       ) : (
         <>
-          {eligible.length > 1 && (
-            <div style={{ marginBottom: 20 }}>
-              <span style={css.label}>Initiative</span>
+          {/* Initiative selector — always visible */}
+          <div style={{ marginBottom: 20 }}>
+            <span style={css.label}>Initiative</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <select
                 value={selectedId || ini?.id || ""}
                 onChange={e => setSelectedId(e.target.value)}
-                style={{ ...css.input, maxWidth: 420 }}
+                style={{ ...css.input, maxWidth: 480, fontSize: 14, fontWeight: 600 }}
               >
                 {eligible.map(i => (
-                  <option key={i.id} value={i.id}>{i.slug} · {i.title}</option>
+                  <option key={i.id} value={i.id}>
+                    {i.slug} · {i.title} {i.contract_status === "confirmed" ? "✓" : i.contract_primary_metric ? "◐" : "○"}
+                  </option>
                 ))}
               </select>
+              <span style={{ fontSize: 11, color: T.muted }}>
+                {eligible.length} initiative{eligible.length !== 1 ? "s" : ""} eligible · ✓ confirmed · ◐ draft · ○ not started
+              </span>
             </div>
-          )}
+          </div>
 
           {ini && (
             <>
