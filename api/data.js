@@ -420,60 +420,68 @@ async function handleInitiatives(sql, action, payload) {
       // Helper: safe boolean — ONLY accept explicit true/false, never from debounce
       // approved is handled by its own direct write — never comes through here
 
-      // Cast helpers — explicitly type null so Postgres never sees an untyped $N
-      const numN  = (v) => num(v) !== null ? num(v) : null;
-      const asInt = (v) => sql`${numN(v)}::INTEGER`;
-      const asBig = (v) => sql`${numN(v)}::BIGINT`;
-      const asNum = (v) => sql`${numN(v)}::NUMERIC`;
-      const asTxt = (v) => sql`${str(v)}::TEXT`;
+      // Safe typed values — Postgres infers type from context when the column type
+      // is known on the right side of COALESCE. TEXT columns are unambiguous.
+      // For numerics we pass JS null (not undefined) which the driver sends as SQL NULL,
+      // and Postgres resolves the type from the column on the right of COALESCE.
+      const t = (v) => str(v);          // TEXT — pass string or null
+      const n = (v) => num(v);          // NUMERIC/INT/BIGINT — pass number or null
 
       const rows = await sql`
         UPDATE initiatives SET
-          title           = COALESCE(${asTxt(r.title)},            title),
-          stage           = COALESCE(${asTxt(r.stage)},            stage),
-          source          = COALESCE(${asTxt(r.source)},           source),
-          source_detail   = COALESCE(${asTxt(r.source_detail)},    source_detail),
-          problem         = COALESCE(${asTxt(r.problem)},          problem),
-          opportunity     = COALESCE(${asTxt(r.opportunity)},      opportunity),
-          okr_id          = ${r.okr_id !== undefined ? (r.okr_id || null) : sql`okr_id`}::uuid,
-          theme_id        = ${r.theme_id !== undefined ? (r.theme_id || null) : sql`theme_id`}::uuid,
-          capability_id   = ${r.capability_id !== undefined ? (r.capability_id || null) : sql`capability_id`}::uuid,
-          pivot_p         = COALESCE(${asNum(r.pivot_p)},          pivot_p),
-          pivot_i         = COALESCE(${asNum(r.pivot_i)},          pivot_i),
-          pivot_v         = COALESCE(${asNum(r.pivot_v)},          pivot_v),
-          pivot_o         = COALESCE(${asNum(r.pivot_o)},          pivot_o),
-          pivot_t         = COALESCE(${asNum(r.pivot_t)},          pivot_t),
-          evidence_interviews     = COALESCE(${asTxt(r.evidence_interviews)},     evidence_interviews),
-          evidence_pain_confirmed = COALESCE(${asTxt(r.evidence_pain_confirmed)}, evidence_pain_confirmed),
-          evidence_revenue_opp    = COALESCE(${asTxt(r.evidence_revenue_opp)},    evidence_revenue_opp),
-          evidence_cost_savings   = COALESCE(${asTxt(r.evidence_cost_savings)},   evidence_cost_savings),
-          evidence_competitive    = COALESCE(${asTxt(r.evidence_competitive)},    evidence_competitive),
-          evidence_nps            = COALESCE(${asTxt(r.evidence_nps)},            evidence_nps),
-          investment_requested    = COALESCE(${asBig(r.investment_requested)},    investment_requested),
-          investment_approved     = COALESCE(${asBig(r.investment_approved)},     investment_approved),
-          eng_teams               = COALESCE(${asInt(r.eng_teams)},               eng_teams),
-          eng_sprints             = COALESCE(${asInt(r.eng_sprints)},             eng_sprints),
-          eng_estimate            = COALESCE(${asBig(r.eng_estimate)},            eng_estimate),
-          wsjf_biz_value          = COALESCE(${asInt(r.wsjf_biz_value)},          wsjf_biz_value),
-          wsjf_time_crit          = COALESCE(${asInt(r.wsjf_time_crit)},          wsjf_time_crit),
-          wsjf_risk_reduction     = COALESCE(${asInt(r.wsjf_risk_reduction)},     wsjf_risk_reduction),
-          wsjf_effort             = COALESCE(${asInt(r.wsjf_effort)},             wsjf_effort),
-          pivot_coach             = COALESCE(${asTxt(r.pivot_coach)},             pivot_coach),
-          eng_estimate_ai         = COALESCE(${asTxt(r.eng_estimate_ai)},         eng_estimate_ai),
-          exec_brief              = COALESCE(${asTxt(r.exec_brief)},              exec_brief),
-          one_pager               = COALESCE(${asTxt(r.one_pager)},               one_pager),
-          personas                = COALESCE(${asTxt(r.personas)},                personas),
-          current_journey         = COALESCE(${asTxt(r.current_journey)},         current_journey),
-          future_journey          = COALESCE(${asTxt(r.future_journey)},          future_journey),
-          jtbd                    = COALESCE(${asTxt(r.jtbd)},                    jtbd),
-          use_cases               = COALESCE(${asTxt(r.use_cases)},               use_cases),
-          epics                   = COALESCE(${asTxt(r.epics)},                   epics),
-          risk_register           = COALESCE(${asTxt(r.risk_register)},           risk_register),
-          pi_planning             = COALESCE(${asTxt(r.pi_planning)},             pi_planning),
-          handoff_package         = COALESCE(${asTxt(r.handoff_package)},         handoff_package)
+          title           = COALESCE(${t(r.title)}::text,           title),
+          stage           = COALESCE(${t(r.stage)}::text,           stage),
+          source          = COALESCE(${t(r.source)}::text,          source),
+          source_detail   = COALESCE(${t(r.source_detail)}::text,   source_detail),
+          problem         = COALESCE(${t(r.problem)}::text,         problem),
+          opportunity     = COALESCE(${t(r.opportunity)}::text,     opportunity),
+          pivot_p         = COALESCE(${n(r.pivot_p)}::numeric,      pivot_p),
+          pivot_i         = COALESCE(${n(r.pivot_i)}::numeric,      pivot_i),
+          pivot_v         = COALESCE(${n(r.pivot_v)}::numeric,      pivot_v),
+          pivot_o         = COALESCE(${n(r.pivot_o)}::numeric,      pivot_o),
+          pivot_t         = COALESCE(${n(r.pivot_t)}::numeric,      pivot_t),
+          evidence_interviews     = COALESCE(${t(r.evidence_interviews)}::text,     evidence_interviews),
+          evidence_pain_confirmed = COALESCE(${t(r.evidence_pain_confirmed)}::text, evidence_pain_confirmed),
+          evidence_revenue_opp    = COALESCE(${t(r.evidence_revenue_opp)}::text,    evidence_revenue_opp),
+          evidence_cost_savings   = COALESCE(${t(r.evidence_cost_savings)}::text,   evidence_cost_savings),
+          evidence_competitive    = COALESCE(${t(r.evidence_competitive)}::text,    evidence_competitive),
+          evidence_nps            = COALESCE(${t(r.evidence_nps)}::text,            evidence_nps),
+          investment_requested    = COALESCE(${n(r.investment_requested)}::bigint,  investment_requested),
+          investment_approved     = COALESCE(${n(r.investment_approved)}::bigint,   investment_approved),
+          eng_teams               = COALESCE(${n(r.eng_teams)}::integer,            eng_teams),
+          eng_sprints             = COALESCE(${n(r.eng_sprints)}::integer,          eng_sprints),
+          eng_estimate            = COALESCE(${n(r.eng_estimate)}::bigint,          eng_estimate),
+          wsjf_biz_value          = COALESCE(${n(r.wsjf_biz_value)}::integer,       wsjf_biz_value),
+          wsjf_time_crit          = COALESCE(${n(r.wsjf_time_crit)}::integer,       wsjf_time_crit),
+          wsjf_risk_reduction     = COALESCE(${n(r.wsjf_risk_reduction)}::integer,  wsjf_risk_reduction),
+          wsjf_effort             = COALESCE(${n(r.wsjf_effort)}::integer,          wsjf_effort),
+          pivot_coach             = COALESCE(${t(r.pivot_coach)}::text,             pivot_coach),
+          eng_estimate_ai         = COALESCE(${t(r.eng_estimate_ai)}::text,         eng_estimate_ai),
+          exec_brief              = COALESCE(${t(r.exec_brief)}::text,              exec_brief),
+          one_pager               = COALESCE(${t(r.one_pager)}::text,               one_pager),
+          personas                = COALESCE(${t(r.personas)}::text,                personas),
+          current_journey         = COALESCE(${t(r.current_journey)}::text,         current_journey),
+          future_journey          = COALESCE(${t(r.future_journey)}::text,          future_journey),
+          jtbd                    = COALESCE(${t(r.jtbd)}::text,                    jtbd),
+          use_cases               = COALESCE(${t(r.use_cases)}::text,               use_cases),
+          epics                   = COALESCE(${t(r.epics)}::text,                   epics),
+          risk_register           = COALESCE(${t(r.risk_register)}::text,           risk_register),
+          pi_planning             = COALESCE(${t(r.pi_planning)}::text,             pi_planning),
+          handoff_package         = COALESCE(${t(r.handoff_package)}::text,         handoff_package)
         WHERE id = ${id}
         RETURNING *
       `;
+
+      // UUID fields — only update when explicitly provided, never coerce null through uuid cast
+      if (r.okr_id !== undefined) {
+        await sql`UPDATE initiatives SET okr_id = ${r.okr_id || null}::uuid WHERE id = ${id}`;
+      }
+      if (r.theme_id !== undefined) {
+        await sql`UPDATE initiatives SET theme_id = ${r.theme_id || null}::uuid WHERE id = ${id}`;
+      }
+      if (r.capability_id !== undefined) {
+        await sql`UPDATE initiatives SET capability_id = ${r.capability_id || null}::uuid WHERE id = ${id}`;
+      }
 
       // approved has its own direct write path (InitiativeDetail.jsx)
       // Only update it here if explicitly passed as a boolean (direct write, not debounce)
