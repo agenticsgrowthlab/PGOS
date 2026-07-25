@@ -128,37 +128,61 @@ export function normalizeInitiative(row) {
 
 // ─── Denormalize initiative back to DB shape ──────────────────
 export function denormalizeInitiative(ini) {
+  // ONLY send flat scalar columns that exist in the DB schema.
+  // Never send nested objects (pivot{}, evidence{}, investment{}, etc.)
+  // Never send approved/approved_by/approved_date — those have their own
+  // direct write in InitiativeDetail and must not be overwritten by debounce.
   return {
-    ...ini,
-    pivot_p: ini.pivot?.p,
-    pivot_i: ini.pivot?.i,
-    pivot_v: ini.pivot?.v,
-    pivot_o: ini.pivot?.o,
-    pivot_t: ini.pivot?.t,
-    evidence_interviews: ini.evidence?.interviews,
-    evidence_pain_confirmed: ini.evidence?.painConfirmed,
-    evidence_revenue_opp: ini.evidence?.revenueOpp,
-    evidence_cost_savings: ini.evidence?.costSavings,
-    evidence_competitive: ini.evidence?.competitive,
-    evidence_nps: ini.evidence?.nps,
-    investment_requested: ini.investment?.requested,
-    investment_approved: ini.investment?.approved,
-    eng_teams: ini.engSpend?.teams,
-    eng_sprints: ini.engSpend?.sprints,
-    eng_estimate: ini.engSpend?.estimate,
-    wsjf_biz_value: ini.portfolioScore?.bizValue,
-    wsjf_time_crit: ini.portfolioScore?.timeCriticality,
-    wsjf_risk_reduction: ini.portfolioScore?.riskReduction,
-    wsjf_effort: ini.portfolioScore?.effort,
-    pivot_coach: ini.pivotCoach,
-    eng_estimate_ai: ini.engEstimate,
-    exec_brief: ini.execBrief,
-    one_pager: ini.onePager,
-    current_journey: ini.currentJourney,
-    future_journey: ini.futureJourney,
-    use_cases: ini.usecases,
-    risk_register: ini.riskReg,
-    pi_planning: ini.piPlanning,
-    handoff_package: ini.handoffPackage,
+    id: ini.id,
+    title: ini.title,
+    stage: ini.stage,
+    source: ini.source,
+    source_detail: ini.source_detail,
+    problem: ini.problem,
+    opportunity: ini.opportunity,
+    okr_id: ini.okr_id ?? null,
+    theme_id: ini.theme_id ?? null,
+    capability_id: ini.capability_id ?? null,
+    // PIVOT (flattened)
+    pivot_p: ini.pivot?.p ?? 5,
+    pivot_i: ini.pivot?.i ?? 5,
+    pivot_v: ini.pivot?.v ?? 5,
+    pivot_o: ini.pivot?.o ?? 5,
+    pivot_t: ini.pivot?.t ?? 5,
+    // Evidence (flattened)
+    evidence_interviews: ini.evidence?.interviews ?? "0",
+    evidence_pain_confirmed: ini.evidence?.painConfirmed ?? "—",
+    evidence_revenue_opp: ini.evidence?.revenueOpp ?? "TBD",
+    evidence_cost_savings: ini.evidence?.costSavings ?? "TBD",
+    evidence_competitive: ini.evidence?.competitive ?? "Not assessed",
+    evidence_nps: ini.evidence?.nps ?? "Not assessed",
+    // Investment (flattened)
+    investment_requested: ini.investment?.requested ?? 0,
+    investment_approved: ini.investment?.approved ?? 0,
+    // Engineering (flattened)
+    eng_teams: ini.engSpend?.teams ?? 0,
+    eng_sprints: ini.engSpend?.sprints ?? 0,
+    eng_estimate: ini.engSpend?.estimate ?? 0,
+    // WSJF (flattened)
+    wsjf_biz_value: ini.portfolioScore?.bizValue ?? 0,
+    wsjf_time_crit: ini.portfolioScore?.timeCriticality ?? 0,
+    wsjf_risk_reduction: ini.portfolioScore?.riskReduction ?? 0,
+    wsjf_effort: ini.portfolioScore?.effort ?? 0,
+    // AI artifacts
+    pivot_coach: ini.pivotCoach ?? null,
+    eng_estimate_ai: ini.engEstimate ?? null,
+    exec_brief: ini.execBrief ?? null,
+    one_pager: ini.onePager ?? null,
+    personas: ini.personas ?? null,
+    current_journey: ini.currentJourney ?? null,
+    future_journey: ini.futureJourney ?? null,
+    jtbd: ini.jtbd ?? null,
+    use_cases: ini.usecases ?? null,
+    epics: ini.epics ?? null,
+    risk_register: ini.riskReg ?? null,
+    pi_planning: ini.piPlanning ?? null,
+    handoff_package: ini.handoffPackage ?? null,
+    // NOTE: approved/approved_by/approved_date intentionally excluded —
+    // managed exclusively by the direct write in InitiativeDetail.jsx
   };
 }
