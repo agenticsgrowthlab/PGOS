@@ -340,7 +340,7 @@ const TOKEN_MAP = {
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
   risk_register: 900, pi_planning: 1200, handoff: 1500,
   portfolio_analysis: 700, chatty: 700,
-  bootstrap_company: 4000,
+  bootstrap_company: 8000,
 };
 
 // ─── Bootstrap company prompt ─────────────────────────────────
