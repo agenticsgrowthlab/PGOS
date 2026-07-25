@@ -163,11 +163,11 @@ export function denormalizeInitiative(ini) {
     eng_teams: ini.engSpend?.teams ?? 0,
     eng_sprints: ini.engSpend?.sprints ?? 0,
     eng_estimate: ini.engSpend?.estimate ?? 0,
-    // WSJF (flattened)
-    wsjf_biz_value: ini.portfolioScore?.bizValue ?? 0,
-    wsjf_time_crit: ini.portfolioScore?.timeCriticality ?? 0,
-    wsjf_risk_reduction: ini.portfolioScore?.riskReduction ?? 0,
-    wsjf_effort: ini.portfolioScore?.effort ?? 0,
+    // WSJF (read flat DB columns first, fall back to legacy nested object)
+    wsjf_biz_value: ini.wsjf_biz_value ?? ini.portfolioScore?.bizValue ?? 0,
+    wsjf_time_crit: ini.wsjf_time_crit ?? ini.portfolioScore?.timeCriticality ?? 0,
+    wsjf_risk_reduction: ini.wsjf_risk_reduction ?? ini.portfolioScore?.riskReduction ?? 0,
+    wsjf_effort: ini.wsjf_effort ?? ini.portfolioScore?.effort ?? 0,
     // AI artifacts
     pivot_coach: ini.pivotCoach ?? null,
     eng_estimate_ai: ini.engEstimate ?? null,

@@ -125,7 +125,13 @@ export function Portfolio() {
       </div>
 
       {sorted.map((ini, idx) => {
-        const ps = ini.portfolioScore || {};
+        // Read WSJF scores from flat DB columns, fall back to legacy portfolioScore object
+        const ps = {
+          bizValue:        ini.wsjf_biz_value     || ini.portfolioScore?.bizValue       || 0,
+          timeCriticality: ini.wsjf_time_crit      || ini.portfolioScore?.timeCriticality || 0,
+          riskReduction:   ini.wsjf_risk_reduction || ini.portfolioScore?.riskReduction   || 0,
+          effort:          ini.wsjf_effort         || ini.portfolioScore?.effort           || 0,
+        };
         const wsjf = calcWSJF(ini);
         const pivot = calcPivot(ini.pivot);
         const tier = pivotTier(pivot);
