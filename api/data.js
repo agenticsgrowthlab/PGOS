@@ -157,6 +157,8 @@ async function handleOrganization(sql, action, payload) {
           const c = b.competitors[i];
           const tier   = validTiers.includes(c.tier) ? c.tier : "secondary";
           const threat = validThreats.includes(c.threat_level) ? c.threat_level : "medium";
+          // Cast all scores to float to avoid integer column type errors
+          const toFloat = (v) => v != null ? parseFloat(v) : null;
           await sql`
             INSERT INTO competitors (
               org_id, name, tier, threat_level,
@@ -166,9 +168,9 @@ async function handleOrganization(sql, action, payload) {
               sort_order
             ) VALUES (
               ${org_id}, ${c.name}, ${tier}, ${threat},
-              ${c.overall_score || null}, ${c.digital_score || null},
-              ${c.mobile_score || null}, ${c.claims_score || null}, ${c.portal_score || null},
-              ${c.app_store_rating || null}, ${c.market_share_pct || null},
+              ${toFloat(c.overall_score)}, ${toFloat(c.digital_score)},
+              ${toFloat(c.mobile_score)}, ${toFloat(c.claims_score)}, ${toFloat(c.portal_score)},
+              ${toFloat(c.app_store_rating)}, ${toFloat(c.market_share_pct)},
               ${c.key_differentiator || ""},
               ${c.strengths || []}, ${c.weaknesses || []},
               ${c.our_advantage || ""}, ${c.our_gap || ""},
