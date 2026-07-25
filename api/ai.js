@@ -534,12 +534,17 @@ export default async function handler(req, res) {
       // Extract text from content blocks (may include tool_use blocks)
       const textBlock = data.content?.find(b => b.type === "text");
       const raw = textBlock?.text || "";
+      console.log("Bootstrap raw response (first 1000):", raw.slice(0, 1000));
 
-      // Parse JSON — strip any accidental markdown fences
+      // Smart JSON extraction — find the outermost { } even if AI adds preamble
       const clean = raw.replace(/```json|```/g, "").trim();
+      const jsonStart = clean.indexOf("{");
+      const jsonEnd = clean.lastIndexOf("}");
       let parsed;
       try {
-        parsed = JSON.parse(clean);
+        if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON object found");
+        const jsonStr = clean.slice(jsonStart, jsonEnd + 1);
+        parsed = JSON.parse(jsonStr);
       } catch (e) {
         console.error("Bootstrap JSON parse error:", e.message, "\nRaw:", raw.slice(0, 500));
         return res.status(502).json({ error: "AI returned invalid JSON", raw: raw.slice(0, 500) });
