@@ -33,14 +33,88 @@ export function Portfolio() {
 
   return (
     <div>
-      <div style={css.h2}>SAFe Portfolio Review</div>
+      <div style={css.h2}>Portfolio Review</div>
       <div style={css.sub}>Stakeholder scoring, WSJF prioritization, and PI selection.</div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <button style={css.btnOut} onClick={getSummary}>◆ AI Portfolio Analysis</button>
       </div>
       {loading && <AIBox label="◆ Portfolio Advisor — Analyzing" loading />}
-      {aiSummary && <AIBox label="◆ Portfolio Advisor — PI Recommendations">{aiSummary}</AIBox>}
+
+      {/* Structured AI Portfolio Analysis */}
+      {aiSummary && !loading && (
+        <div style={{ marginBottom: 24 }}>
+          {/* Parse markdown into sections */}
+          {(() => {
+            const sections = aiSummary
+              .split(/\n(?=##\s)/)
+              .filter(s => s.trim());
+
+            return sections.map((section, si) => {
+              const lines = section.split("\n").filter(l => l.trim());
+              const heading = lines[0]?.replace(/^#+\s*/, "").replace(/\*\*/g, "").trim();
+              const body = lines.slice(1);
+
+              // Parse initiatives within each section
+              const initiatives_found = [];
+              let current = null;
+              body.forEach(line => {
+                const clean = line.replace(/\*\*/g, "").replace(/^#+\s*/, "").replace(/^-{3,}$/, "").trim();
+                if (!clean) return;
+                if (line.match(/^###/)) {
+                  if (current) initiatives_found.push(current);
+                  current = { title: clean, details: [] };
+                } else if (current) {
+                  if (clean.startsWith("Stage:") || clean.startsWith("Rationale:") || clean.startsWith("Reason:") || clean.startsWith("Recommended")) {
+                    current.details.push(clean);
+                  } else if (clean.length > 10 && !clean.match(/^\|/)) {
+                    current.details.push(clean);
+                  }
+                }
+              });
+              if (current) initiatives_found.push(current);
+
+              const hasCards = initiatives_found.length > 0;
+              const plainText = body
+                .filter(l => !l.match(/^#+/) && !l.match(/^-{3,}$/) && l.trim())
+                .map(l => l.replace(/\*\*/g, "").replace(/^>\s*/, "").trim())
+                .filter(Boolean)
+                .join(" ");
+
+              return (
+                <div key={si} style={{ marginBottom: 16 }}>
+                  {/* Section header */}
+                  <div style={{ fontSize: 10, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
+                    ◆ {heading}
+                  </div>
+
+                  {hasCards ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {initiatives_found.map((item, ii) => {
+                        const isDefer = item.title.toLowerCase().includes("defer");
+                        const isConcern = item.title.toLowerCase().includes("concern") || item.title.toLowerCase().includes("dependency");
+                        const color = isDefer ? T.amber : isConcern ? T.red : T.green;
+                        return (
+                          <div key={ii} style={{ background: T.ink3, border: `1px solid ${T.border}`, borderLeft: `3px solid ${color}`, borderRadius: 8, padding: "12px 16px" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 6 }}>{item.title}</div>
+                            {item.details.slice(0, 4).map((d, di) => (
+                              <div key={di} style={{ fontSize: 12, color: T.body, lineHeight: 1.6, marginBottom: 4 }}>{d}</div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : plainText ? (
+                    <div style={{ fontSize: 13, color: T.body, lineHeight: 1.7, background: T.ink3, borderRadius: 8, padding: "12px 16px", border: `1px solid ${T.border}` }}>
+                      {plainText}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            });
+          })()}
+        </div>
+      )}
 
       <div style={{ ...css.card, background: T.ink3, padding: "10px 16px", marginBottom: 0, borderRadius: "10px 10px 0 0" }}>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px", gap: 8, alignItems: "center" }}>
@@ -324,7 +398,7 @@ export function PIPlanning() {
         {!approved.length && <span style={{ fontSize:12, color:T.muted }}>Approve at least one initiative first</span>}
       </div>
 
-      {loading && <AIBox label="◆ SAFe RTE — Building PI Package" loading />}
+      {loading && <AIBox label="◆ PI Planning Advisor — Building Package" loading />}
 
       {piCards && (
         <div>
