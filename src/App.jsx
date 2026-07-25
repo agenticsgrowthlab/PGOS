@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppProvider, useApp } from "./contexts/AppContext";
-import { Sidebar } from "./components/layout/Sidebar";
+import InvestmentContract from "./pages/InvestmentContract";
 import { LoadingScreen, ErrorScreen } from "./components/ui";
 import { Dashboard } from "./pages/Dashboard";
 import { Foundation } from "./pages/Foundation";
@@ -99,6 +99,7 @@ function Inner() {
     if (view === "foundation")   return <Foundation />;
     if (view === "ideas")        return <Ideas setView={setView} />;
     if (view === "portfolio")    return <Portfolio />;
+    if (view === "investment_contract") return <InvestmentContract />;
     if (view === "delivery")     return <PIPlanning />;
     if (view === "handoff")      return <Handoff />;
     if (view === "measure")      return <Measure />;
@@ -137,7 +138,7 @@ function Inner() {
               dashboard: "Dashboard", foundation: "Foundation",
               ideas: "Ideas · Stage 1", discovery: "Discovery · Stage 2",
               execreview: "Executive Review · Stage 3", portfolio: "Portfolio · Stage 4",
-              definition: "Product Definition · Stage 5", delivery: "Delivery · Stage 6",
+              definition: "Product Definition · Stage 5", investment_contract: "Investment Contract · Stage 5.5", delivery: "Delivery · Stage 6",
               handoff: "Handoff · Stage 7", measure: "Measure · Stage 8",
               outcome: "Outcome Summary · Stage 9", ref_framework: "NCM PM Framework",
               ref_guide: "How To Use PGI",

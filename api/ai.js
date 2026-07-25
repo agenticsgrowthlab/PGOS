@@ -71,6 +71,8 @@ function buildMessages(action, payload) {
       "You are a senior product manager assembling a complete engineering handoff package. Create a comprehensive, PI-ready handoff document. Include all sections: Initiative Overview, Business Context, Problem & Opportunity, Strategic Alignment, Customer Research Summary, Personas Summary, Current vs Future Journey Key Points, Jobs To Be Done, Use Cases, Epics & Stories, Risk Register (ROAM), Engineering Estimates & Team Structure, Definition of Done, Success Metrics, Dependencies, Open Questions for Engineering, Go/No-Go Checklist.",
     portfolio_analysis:
       "You are a SAFe Portfolio Manager. Analyze this portfolio and provide: 1) Top 3 recommended for next PI, with rationale, 2) One initiative that should be deferred (with reason), 3) Portfolio balance assessment (strategic coverage, risk profile), 4) One dependency concern across initiatives. Be specific and executive-ready.",
+    investment_contract:
+      "You are a senior product investment advisor. Based on the initiative context provided, generate a precise Investment Contract that will serve as the measurement agreement before delivery begins. Be specific, quantified, and realistic. Every metric must be traceable to something the team can actually measure. Format your response as a JSON object with these exact keys: primary_metric, baseline, target, secondary_metrics (array of {metric, baseline, target}), telemetry_source, review_window_days, economic_outcome, narrative. The narrative should be 2-3 sentences summarizing the investment thesis and what success looks like.",
     chatty:
       `You are the Product Growth Intelligence Advisor — an expert SAFe product management AI embedded in PGI (Product Growth Intelligence). You are currently advising on the ACTIVE workspace only — you only know about the company, initiatives, OKRs, and data provided in the context below. You have NO knowledge of other workspaces or companies in the platform. You know the full company context, all initiatives, their stages, PIVOT scores, evidence, measurement data, and outcomes. You are proactive, insightful, and executive-quality. You surface dependencies, roadmap sequencing issues, evidence gaps, portfolio balance problems, adoption risks, and outcome patterns. You are direct, decisive, and always give your best recommendation. Never say "I cannot" — give the most useful answer possible based on available context.`,
   };
@@ -141,6 +143,28 @@ function buildMessages(action, payload) {
     case "handoff":
       userContent = `${orgCtx}\n${iniCtx}\nApproved by: ${ini.approved_by} on ${ini.approved_date}\nPersonas: ${(ini.personas || "Not generated").substring(0, 300)}\nJTBD: ${(ini.jtbd || "Not generated").substring(0, 300)}\nCurrent Journey: ${(ini.current_journey || "").substring(0, 250)}\nFuture Journey: ${(ini.future_journey || "").substring(0, 250)}\nUse Cases: ${(ini.use_cases || "Not generated").substring(0, 400)}\nEpics & Stories: ${(ini.epics || "Not generated").substring(0, 500)}\nRisk Register: ${(ini.risk_register || "Not generated").substring(0, 300)}\nEng Estimate: ${ini.eng_estimate ? `$${(ini.eng_estimate / 1000).toFixed(0)}K, ${ini.eng_teams} teams, ${ini.eng_sprints} sprints` : "Not estimated"}`;
       break;
+
+    case "investment_contract": {
+      const investment = ini.investment_approved || ini.investment_requested || 0;
+      userContent = `${orgCtx}
+
+Initiative: ${ini.title}
+Problem: ${ini.problem}
+Opportunity: ${ini.opportunity}
+Stage: ${ini.stage}
+Investment Approved: $${(investment / 1000000).toFixed(2)}M
+Evidence — Interviews: ${ini.evidence_interviews}, Pain Confirmed: ${ini.evidence_pain_confirmed}, Revenue Opportunity: ${ini.evidence_revenue_opp}, Cost Savings: ${ini.evidence_cost_savings}
+PIVOT Score: P=${ini.pivot?.p} I=${ini.pivot?.i} V=${ini.pivot?.v} O=${ini.pivot?.o} T=${ini.pivot?.t}
+Eng Estimate: ${ini.eng_teams} teams, ${ini.eng_sprints} sprints
+Personas: ${(ini.personas || "").substring(0, 200)}
+JTBD: ${(ini.jtbd || "").substring(0, 200)}
+Epics: ${(ini.epics || "").substring(0, 300)}
+
+Generate an Investment Contract JSON. Be specific and quantified. The primary_metric should be the single most important outcome metric. secondary_metrics should be 2-3 supporting metrics. telemetry_source should name the actual tool or method (e.g. "GA4 funnel events", "Mixpanel user flow", "CSV export from Salesforce"). review_window_days should be realistic (30-180). economic_outcome should state the expected financial or business impact in concrete terms.
+
+Return ONLY valid JSON, no markdown, no explanation.`;
+      break;
+    }
 
     case "portfolio_analysis": {
       const ranked = (initiatives || [])
@@ -341,6 +365,7 @@ const TOKEN_MAP = {
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
   risk_register: 900, pi_planning: 1200, handoff: 1500,
   portfolio_analysis: 700, chatty: 700,
+  investment_contract: 1200,
   bootstrap_company: 8000,
 };
 

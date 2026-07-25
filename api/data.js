@@ -474,7 +474,16 @@ async function handleInitiatives(sql, action, payload) {
           measure_notes    = COALESCE(${p.measure_notes}, measure_notes),
           lessons_learned  = COALESCE(${p.lessons_learned}, lessons_learned),
           next_action      = COALESCE(${p.next_action}, next_action),
-          outcome_summary  = COALESCE(${p.outcome_summary}, outcome_summary)
+          outcome_summary  = COALESCE(${p.outcome_summary}, outcome_summary),
+          contract_primary_metric    = COALESCE(${p.contract_primary_metric}, contract_primary_metric),
+          contract_baseline          = COALESCE(${p.contract_baseline}, contract_baseline),
+          contract_target            = COALESCE(${p.contract_target}, contract_target),
+          contract_secondary_metrics = COALESCE(${p.contract_secondary_metrics}, contract_secondary_metrics),
+          contract_telemetry_source  = COALESCE(${p.contract_telemetry_source}, contract_telemetry_source),
+          contract_review_window     = COALESCE(${p.contract_review_window}, contract_review_window),
+          contract_economic_outcome  = COALESCE(${p.contract_economic_outcome}, contract_economic_outcome),
+          contract_ai_narrative      = COALESCE(${p.contract_ai_narrative}, contract_ai_narrative),
+          contract_status            = COALESCE(${p.contract_status}, contract_status)
         WHERE id = ${p.id}
         RETURNING *
       `;
