@@ -462,12 +462,12 @@ async function handleInitiatives(sql, action, payload) {
           bar_color        = COALESCE(${p.bar_color || null}, bar_color)
         WHERE id = ${p.id}
         RETURNING *
-      \`;
+      `;
 
       // ── Extended update (migration-added columns) ─────────────
       // Wrapped separately so missing columns don't break the core save
       try {
-        await sql\`
+        await sql`
           UPDATE initiatives SET
             launch_date      = COALESCE(${p.launch_date || null}, launch_date),
             adoption_rate    = COALESCE(${p.adoption_rate}, adoption_rate),
@@ -487,7 +487,7 @@ async function handleInitiatives(sql, action, payload) {
             next_action      = COALESCE(${p.next_action}, next_action),
             outcome_summary  = COALESCE(${p.outcome_summary}, outcome_summary)
           WHERE id = ${p.id}
-        \`;
+        `;
       } catch (e) {
         // Measure/outcome migration not yet run — core save still succeeded
         console.warn("Extended update skipped (run measure_migration.sql):", e.message);
@@ -495,7 +495,7 @@ async function handleInitiatives(sql, action, payload) {
 
       // ── Contract update (Stage 5.5 migration columns) ─────────
       try {
-        await sql\`
+        await sql`
           UPDATE initiatives SET
             contract_primary_metric    = COALESCE(${p.contract_primary_metric}, contract_primary_metric),
             contract_baseline          = COALESCE(${p.contract_baseline}, contract_baseline),
@@ -507,7 +507,7 @@ async function handleInitiatives(sql, action, payload) {
             contract_ai_narrative      = COALESCE(${p.contract_ai_narrative}, contract_ai_narrative),
             contract_status            = COALESCE(${p.contract_status}, contract_status)
           WHERE id = ${p.id}
-        \`;
+        `;
       } catch (e) {
         // Contract migration not yet run — core save still succeeded
         console.warn("Contract update skipped (run investment_contract_migration.sql):", e.message);
