@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { T } from "../../lib/tokens";
 import { useApp } from "../../contexts/AppContext";
+import { bootstrapCompany } from "../../lib/api";
 
 export function Sidebar({ view, setView }) {
   const { initiatives, orgs, orgId, switchOrg, addOrg, switchingOrg } = useApp();
@@ -11,18 +12,44 @@ export function Sidebar({ view, setView }) {
   const [showNewOrgModal, setShowNewOrgModal] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [creatingOrg, setCreatingOrg] = useState(false);
+  const [bootstrapStep, setBootstrapStep] = useState(""); // progress message
 
   async function handleCreateOrg() {
     const name = newOrgName.trim();
     if (!name) return;
     setCreatingOrg(true);
+    setBootstrapStep("Creating workspace…");
     try {
-      await addOrg(name);
+      // Step 1: create blank org row
+      const newOrg = await addOrg(name);
+
+      // Step 2: call AI to research company
+      setBootstrapStep(`Researching ${name}…`);
+      const aiRes = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bootstrap_company", payload: { companyName: name } }),
+      });
+      const aiData = await aiRes.json();
+
+      if (!aiData.data) {
+        throw new Error(aiData.error || "AI research failed");
+      }
+
+      // Step 3: write all data to Neon
+      setBootstrapStep("Populating foundation data…");
+      await bootstrapCompany(newOrg.id, aiData.data);
+
+      // Step 4: reload the org data so UI reflects new content
+      setBootstrapStep("Loading workspace…");
+      await switchOrg(newOrg.id);
+
       setShowNewOrgModal(false);
       setNewOrgName("");
-      setView("foundation"); // land on foundation for blank org
+      setView("foundation");
     } catch (err) {
       console.error("Create org error:", err);
+      setBootstrapStep(`Error: ${err.message}`);
     } finally {
       setCreatingOrg(false);
     }
@@ -209,7 +236,7 @@ export function Sidebar({ view, setView }) {
             Add Company Workspace
           </div>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 18 }}>
-            Create a blank workspace for a new company. You can populate it with data after.
+            Type a company name and AI will research it and auto-populate your workspace with real data — mission, OKRs, competitors, products, and starter initiatives.
           </div>
           <input
             autoFocus
@@ -217,13 +244,32 @@ export function Sidebar({ view, setView }) {
             onChange={e => setNewOrgName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleCreateOrg()}
             placeholder="e.g. Datavant"
+            disabled={creatingOrg}
             style={{
               width: "100%", padding: "10px 12px",
               background: T.ink3, border: `1px solid ${T.border}`,
               borderRadius: 8, color: T.white, fontSize: 14,
               outline: "none", boxSizing: "border-box",
+              opacity: creatingOrg ? 0.5 : 1,
             }}
           />
+
+          {/* Bootstrap progress */}
+          {creatingOrg && (
+            <div style={{
+              marginTop: 14, padding: "10px 14px",
+              background: T.ink3, borderRadius: 8,
+              border: `1px solid ${T.gold}`,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 14, color: T.gold, animation: "spin 1s linear infinite" }}>◆</span>
+                <span style={{ fontSize: 12, color: T.gold, fontWeight: 700 }}>{bootstrapStep}</span>
+              </div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>
+                AI is researching {newOrgName} and populating your workspace…
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
             <button
               onClick={() => { setShowNewOrgModal(false); setNewOrgName(""); }}
@@ -244,7 +290,7 @@ export function Sidebar({ view, setView }) {
                 opacity: !newOrgName.trim() || creatingOrg ? 0.5 : 1,
               }}
             >
-              {creatingOrg ? "Creating…" : "Create Workspace"}
+            {creatingOrg ? bootstrapStep || "Working…" : "◆ Research & Create"}
             </button>
           </div>
         </div>

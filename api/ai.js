@@ -340,7 +340,104 @@ const TOKEN_MAP = {
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
   risk_register: 900, pi_planning: 1200, handoff: 1500,
   portfolio_analysis: 700, chatty: 700,
+  bootstrap_company: 4000,
 };
+
+// ─── Bootstrap company prompt ─────────────────────────────────
+function buildBootstrapPrompt(companyName) {
+  return {
+    system: `You are a senior product intelligence analyst. Your job is to research a company and return structured JSON data that will be loaded into a product management platform. You must return ONLY valid JSON — no markdown, no explanation, no preamble. The JSON must exactly match the schema provided.
+
+SCHEMA RULES (critical — violations break the database):
+- products[].stage: MUST be exactly one of: "Alpha", "Beta", "GA", "Deprecated"
+- competitors[].tier: MUST be exactly one of: "primary", "secondary"  
+- competitors[].threat_level: MUST be exactly one of: "high", "medium", "low"
+- competitors[].strengths: MUST be an array of strings
+- competitors[].weaknesses: MUST be an array of strings
+- initiatives[].stage: MUST be exactly one of: "idea", "discovery", "review", "approved", "definition", "delivery", "handoff"
+- All numeric scores: decimals between 1.0 and 5.0
+- No apostrophes in text fields — use plain English alternatives
+- No em-dashes — use a hyphen instead`,
+
+    userContent: `Research ${companyName} thoroughly using your knowledge and return a JSON object with this exact structure:
+
+{
+  "org": {
+    "mission": "company mission statement (1-2 sentences)",
+    "vision": "company vision statement (1-2 sentences)",
+    "values": ["value 1", "value 2", "value 3", "value 4", "value 5"]
+  },
+  "okrs": [
+    {
+      "objective": "OKR objective statement",
+      "key_results": ["KR1", "KR2", "KR3", "KR4"],
+      "owner": "Name, Title",
+      "progress": 25
+    }
+  ],
+  "themes": [
+    {
+      "name": "Theme short name",
+      "theme": "Theme tagline",
+      "description": "2-3 sentence strategic description"
+    }
+  ],
+  "capabilities": [
+    {
+      "name": "Capability name",
+      "description": "2-3 sentence description of the capability"
+    }
+  ],
+  "products": [
+    {
+      "name": "Product name",
+      "type": "Platform or AI Product or Service or Feature",
+      "stage": "GA",
+      "advisors": "Target customer segment"
+    }
+  ],
+  "competitors": [
+    {
+      "name": "Competitor name",
+      "tier": "primary",
+      "threat_level": "high",
+      "overall_score": 3.8,
+      "digital_score": 3.5,
+      "mobile_score": 3.0,
+      "claims_score": 3.2,
+      "portal_score": 3.8,
+      "app_store_rating": null,
+      "market_share_pct": 15.0,
+      "key_differentiator": "One sentence describing their main differentiator",
+      "strengths": ["Strength 1", "Strength 2", "Strength 3"],
+      "weaknesses": ["Weakness 1", "Weakness 2"],
+      "our_advantage": "One sentence on what makes ${companyName} better",
+      "our_gap": "One sentence on where the competitor has an edge"
+    }
+  ],
+  "initiatives": [
+    {
+      "slug": "INI-001",
+      "title": "Initiative title",
+      "stage": "discovery",
+      "source": "Market Opportunity",
+      "problem": "Problem statement 1-2 sentences",
+      "opportunity": "Opportunity statement 1-2 sentences"
+    }
+  ]
+}
+
+Requirements:
+- 3 OKRs reflecting real company priorities
+- 3 strategic themes
+- 4-5 capabilities (core competencies)
+- 3-5 products (real product lines)
+- 5-6 competitors (mix of primary and secondary, scored realistically)
+- 3 initiatives (realistic PM opportunities at this company)
+- Use real data about ${companyName} — real products, real competitors, real strategic direction
+- Return ONLY the JSON object, nothing else`,
+  };
+}
 
 // ─── Handler ──────────────────────────────────────────────────
 export default async function handler(req, res) {
@@ -359,6 +456,55 @@ export default async function handler(req, res) {
   }
 
   try {
+    // ── Bootstrap company: special JSON-returning action ────────
+    if (action === "bootstrap_company") {
+      const { companyName } = payload;
+      if (!companyName) return res.status(400).json({ error: "companyName required" });
+
+      const { system, userContent } = buildBootstrapPrompt(companyName);
+
+      const response = await fetch(ANTHROPIC_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-beta": "web-search-2025-03-05",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: TOKEN_MAP.bootstrap_company,
+          system,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: [{ role: "user", content: userContent }],
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error("Bootstrap AI error:", err);
+        return res.status(502).json({ error: "AI service error", detail: err });
+      }
+
+      const data = await response.json();
+      // Extract text from content blocks (may include tool_use blocks)
+      const textBlock = data.content?.find(b => b.type === "text");
+      const raw = textBlock?.text || "";
+
+      // Parse JSON — strip any accidental markdown fences
+      const clean = raw.replace(/```json|```/g, "").trim();
+      let parsed;
+      try {
+        parsed = JSON.parse(clean);
+      } catch (e) {
+        console.error("Bootstrap JSON parse error:", e.message, "\nRaw:", raw.slice(0, 500));
+        return res.status(502).json({ error: "AI returned invalid JSON", raw: raw.slice(0, 500) });
+      }
+
+      return res.status(200).json({ data: parsed });
+    }
+
+    // ── All other actions ───────────────────────────────────────
     const { system, messages } = buildMessages(action, payload);
     const max_tokens = TOKEN_MAP[action] || 700;
 

@@ -39,6 +39,7 @@ export const listOrgs             = () => data("organization", "list");
 export const createOrg            = (name) => data("organization", "create", { name });
 export const updateOrg            = (payload) => data("organization", "update", payload);
 export const checkSeedStatus      = () => data("seed_status", "get");
+export const bootstrapCompany     = (org_id, bootstrap) => data("organization", "bootstrap_company", { org_id, bootstrap });
 
 // OKRs
 export const createOKR            = (payload) => data("okrs", "create", payload);

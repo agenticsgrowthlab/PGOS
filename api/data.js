@@ -85,6 +85,120 @@ async function handleOrganization(sql, action, payload) {
       return { data: rows[0] };
     }
 
+    // Bootstrap: write all seed data for a new org in one safe sequence
+    case "bootstrap_company": {
+      const { org_id, bootstrap } = payload;
+      if (!org_id || !bootstrap) throw new Error("org_id and bootstrap data required");
+
+      const b = bootstrap;
+
+      // 1. Update org mission/vision/values
+      if (b.org) {
+        await sql`
+          UPDATE organization SET
+            mission = ${b.org.mission || ""},
+            vision  = ${b.org.vision  || ""},
+            values  = ${b.org.values  || []}
+          WHERE id = ${org_id}
+        `;
+      }
+
+      // 2. OKRs
+      if (b.okrs?.length) {
+        for (let i = 0; i < b.okrs.length; i++) {
+          const o = b.okrs[i];
+          await sql`
+            INSERT INTO okrs (org_id, objective, key_results, owner, progress, sort_order)
+            VALUES (${org_id}, ${o.objective}, ${o.key_results}, ${o.owner || ""}, ${o.progress || 0}, ${i})
+          `;
+        }
+      }
+
+      // 3. Strategic themes
+      if (b.themes?.length) {
+        for (let i = 0; i < b.themes.length; i++) {
+          const t = b.themes[i];
+          await sql`
+            INSERT INTO strategic_themes (org_id, name, theme, description, sort_order)
+            VALUES (${org_id}, ${t.name}, ${t.theme || ""}, ${t.description || ""}, ${i})
+          `;
+        }
+      }
+
+      // 4. Capabilities
+      if (b.capabilities?.length) {
+        for (let i = 0; i < b.capabilities.length; i++) {
+          const c = b.capabilities[i];
+          await sql`
+            INSERT INTO capabilities (org_id, name, description, sort_order)
+            VALUES (${org_id}, ${c.name}, ${c.description || ""}, ${i})
+          `;
+        }
+      }
+
+      // 5. Products — enforce stage constraint
+      const validStages = ["Alpha", "Beta", "GA", "Deprecated"];
+      if (b.products?.length) {
+        for (let i = 0; i < b.products.length; i++) {
+          const p = b.products[i];
+          const stage = validStages.includes(p.stage) ? p.stage : "Beta";
+          await sql`
+            INSERT INTO products (org_id, name, type, stage, advisors, sort_order)
+            VALUES (${org_id}, ${p.name}, ${p.type || ""}, ${stage}, ${p.advisors || ""}, ${i})
+          `;
+        }
+      }
+
+      // 6. Competitors — enforce tier and threat_level constraints
+      const validTiers   = ["primary", "secondary"];
+      const validThreats = ["high", "medium", "low"];
+      if (b.competitors?.length) {
+        for (let i = 0; i < b.competitors.length; i++) {
+          const c = b.competitors[i];
+          const tier   = validTiers.includes(c.tier) ? c.tier : "secondary";
+          const threat = validThreats.includes(c.threat_level) ? c.threat_level : "medium";
+          await sql`
+            INSERT INTO competitors (
+              org_id, name, tier, threat_level,
+              overall_score, digital_score, mobile_score, claims_score, portal_score,
+              app_store_rating, market_share_pct,
+              key_differentiator, strengths, weaknesses, our_advantage, our_gap,
+              sort_order
+            ) VALUES (
+              ${org_id}, ${c.name}, ${tier}, ${threat},
+              ${c.overall_score || null}, ${c.digital_score || null},
+              ${c.mobile_score || null}, ${c.claims_score || null}, ${c.portal_score || null},
+              ${c.app_store_rating || null}, ${c.market_share_pct || null},
+              ${c.key_differentiator || ""},
+              ${c.strengths || []}, ${c.weaknesses || []},
+              ${c.our_advantage || ""}, ${c.our_gap || ""},
+              ${i}
+            )
+          `;
+        }
+      }
+
+      // 7. Initiatives
+      const validIniStages = ["idea", "discovery", "review", "approved", "definition", "delivery", "handoff"];
+      if (b.initiatives?.length) {
+        for (let i = 0; i < b.initiatives.length; i++) {
+          const ini = b.initiatives[i];
+          const stage = validIniStages.includes(ini.stage) ? ini.stage : "idea";
+          const slug = ini.slug || `INI-${String(i + 1).padStart(3, "0")}`;
+          await sql`
+            INSERT INTO initiatives (org_id, slug, title, stage, source, problem, opportunity)
+            VALUES (
+              ${org_id}, ${slug}, ${ini.title || "Untitled"},
+              ${stage}, ${ini.source || "Market Opportunity"},
+              ${ini.problem || ""}, ${ini.opportunity || ""}
+            )
+          `;
+        }
+      }
+
+      return { data: { success: true, org_id } };
+    }
+
     default:
       throw new Error(`Unknown action for organization: ${action}`);
   }
