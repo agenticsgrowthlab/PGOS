@@ -10,6 +10,7 @@ import Measure from "./pages/Measure";
 import OutcomeSummary from "./pages/OutcomeSummary";
 import { RefFramework, RefGuide, ScoreMath } from "./pages/References";
 import { T, css, stageLabel, stageColor } from "./lib/tokens";
+import { Sidebar } from "./components/layout/Sidebar";
 
 // ─── PPT Download Button ─────────────────────────────────────
 function DownloadPPTBtn({ page, label, gold }) {
