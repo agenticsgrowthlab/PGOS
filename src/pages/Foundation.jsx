@@ -15,7 +15,7 @@ const TABS = [
 ];
 
 
-// ─── Competitor Analysis Component ───────────────────────────
+// ─── Competitor Analysis Component ───────────────────────────--
 function CompetitorAnalysis({ competitors, foundation, addCompetitor, updateComp, removeCompetitor }) {
   const { orgId } = useApp();
   const [collapsed, setCollapsed] = useState(() => {
