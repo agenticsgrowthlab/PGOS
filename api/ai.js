@@ -344,32 +344,24 @@ Tone: Executive-ready. Confident but honest. 400-500 words.`;
 
     case "gtm_full": {
       const ini = payload.ini || {};
-      const foundation = payload.foundation || {};
-      userContent = `You are a senior GTM strategist. Using everything known about this initiative, generate a complete GTM package. Return ONLY valid JSON with no markdown fences.
-
-Company: ${foundation.name || ""}
-Mission: ${foundation.mission || ""}
-Strategy: ${(foundation.okrs || []).map(o => o.objective).join("; ")}
-Competitors: ${(foundation.competitors || []).map(c => c.name).join(", ")}
+      userContent = `Senior GTM strategist. Generate a GTM package as a JSON object. Return ONLY valid JSON, no markdown fences, no preamble.
 
 Initiative: ${ini.title}
-Problem: ${ini.problem || ""}
-Opportunity: ${ini.opportunity || ""}
-Personas: ${(ini.personas || "").substring(0, 400)}
-Investment: $${Number(ini.investment_approved || ini.investment_requested || 0).toLocaleString()}
-Contract Metric: ${ini.contract_primary_metric || ""}, Target: ${ini.contract_target || ""}
-Economic Outcome: ${(ini.contract_economic_outcome || "").substring(0, 200)}
-Exec Brief: ${(ini.exec_brief || "").substring(0, 300)}
+Problem: ${(ini.problem || "").substring(0, 200)}
+Opportunity: ${(ini.opportunity || "").substring(0, 200)}
+Personas: ${(ini.personas || "").substring(0, 250)}
+Metric: ${ini.contract_primary_metric || ""}, Target: ${ini.contract_target || ""}
+Outcome Goal: ${(ini.contract_economic_outcome || "").substring(0, 150)}
 
-Return a JSON object with exactly these keys:
+Return exactly this JSON structure (keep each value under 200 words):
 {
-  "icp": "Ideal Customer Profile — specific job title, company size, industry, pain point, buying trigger",
-  "positioning": "For [ICP] who [pain], [product] is the [category] that [key benefit] unlike [alternatives]",
-  "value_prop": "3-5 value propositions as bullet points tied to the target business metric",
-  "channel_strategy": "Primary and secondary channels with rationale",
-  "launch_plan": "Phased launch: soft launch, GA, scale — include sequencing logic",
-  "success_criteria": "3-5 measurable launch success criteria with specific numbers",
-  "campaign_intel": "Top 3 campaign recommendations most likely to move the target metric. Each: name, hypothesis, channel, message, CTA, why it works"
+  "icp": "Job title, company size, industry, pain point, buying trigger",
+  "positioning": "For [ICP] who [pain], [product] is the [category] that [benefit] unlike [alternative]",
+  "value_prop": "3 bullet value propositions tied to the target metric",
+  "channel_strategy": "Primary channel, secondary channel, rationale",
+  "launch_plan": "Phase 1 soft launch, Phase 2 GA, Phase 3 scale — key actions per phase",
+  "success_criteria": "3 measurable launch criteria with specific numbers",
+  "campaign_intel": "Campaign 1: [name, channel, message, CTA]. Campaign 2: [same]. Campaign 3: [same]"
 }`;
       break;
     }
@@ -434,7 +426,7 @@ const TOKEN_MAP = {
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
   risk_register: 900, pi_planning: 1200, handoff: 1500,
   portfolio_analysis: 700, chatty: 700,
-  gtm_full: 2000, gtm_calendar: 1500, gtm_social: 2000,
+  gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,
   investment_contract: 1200,
   bootstrap_company: 8000,
 };
