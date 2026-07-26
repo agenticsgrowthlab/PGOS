@@ -1016,10 +1016,10 @@ export function SprintGoals({ setView }) {
   const { initiatives, updateIni } = useApp();
   const [dragStory, setDragStory] = useState(null); // { story, fromSprint }
   const [sprints, setSprints] = useState(() => [
-    { id: "backlog", label: "Backlog", startDate: "", endDate: "", color: T.muted },
-    { id: "s1", label: "Sprint 1", startDate: "", endDate: "", color: T.steel },
-    { id: "s2", label: "Sprint 2", startDate: "", endDate: "", color: T.gold },
-    { id: "s3", label: "Sprint 3", startDate: "", endDate: "", color: T.green },
+    { id: "backlog", label: "Backlog", startDate: "", endDate: "", color: T.muted, goal: "" },
+    { id: "s1", label: "Sprint 1", startDate: "", endDate: "", color: T.steel, goal: "" },
+    { id: "s2", label: "Sprint 2", startDate: "", endDate: "", color: T.gold, goal: "" },
+    { id: "s3", label: "Sprint 3", startDate: "", endDate: "", color: T.green, goal: "" },
   ]);
 
   // Load sprint assignments from initiatives
@@ -1061,7 +1061,7 @@ export function SprintGoals({ setView }) {
   const addSprint = () => {
     const n = sprints.filter(s => s.id !== "backlog").length + 1;
     const colors = [T.steel, T.gold, T.green, T.amber, T.red, "#9B59B6", "#1ABC9C"];
-    setSprints(prev => [...prev, { id: `s${n}`, label: `Sprint ${n}`, startDate: "", endDate: "", color: colors[(n-1) % colors.length] }]);
+    setSprints(prev => [...prev, { id: `s${n}`, label: `Sprint ${n}`, startDate: "", endDate: "", color: colors[(n-1) % colors.length], goal: "" }]);
   };
 
   const updateSprint = (id, key, val) =>
@@ -1111,7 +1111,19 @@ export function SprintGoals({ setView }) {
                 style={{ ...css.input, fontSize: 10, padding: "3px 6px", flex: 1 }} />
             </div>
           )}
-          <div style={{ fontSize: 10, color: T.muted, marginTop: 4 }}>
+          {sprint.id !== "backlog" && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: sprint.color, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>Sprint Goal</div>
+              <textarea
+                value={sprint.goal}
+                onChange={e => updateSprint(sprint.id, "goal", e.target.value)}
+                placeholder="What does the team commit to delivering this sprint?"
+                rows={2}
+                style={{ ...css.ta, fontSize: 11, resize: "none", width: "100%", boxSizing: "border-box", borderColor: `${sprint.color}40`, lineHeight: 1.5 }}
+              />
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: T.muted, marginTop: 6 }}>
             {stories.length} stories{totalPts > 0 ? ` · ${totalPts} pts` : ""}
           </div>
         </div>
@@ -1295,7 +1307,7 @@ export function LessonsLearned({ setView }) {
               { header: "OKR Progress Assessment", color: T.steel, icon: "◎" },
             ];
             return sections.map(sec => {
-              const body = parseAISection(aiInsights, sec.header.replace(/[.*+?^${}()|[\]\]/g,"\\$&"));
+              const body = parseAISection(aiInsights, sec.header);
               if (!body) return null;
               return (
                 <div key={sec.header} style={{ ...css.card, marginBottom: 14, borderLeft: `3px solid ${sec.color}` }}>
