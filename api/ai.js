@@ -1,5 +1,5 @@
 /**
- * /api/ai  — Single AI endpoint for all PGOS AI operations
+ * /api/ai  — Single AI endpoint for all PGOS AI operations---
  *
  * Body: { action, payload }
  *

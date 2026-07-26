@@ -12,7 +12,7 @@ export const T = {
   teal:   "#1ABC9C", teaD: "rgba(26,188,156,0.11)",
 };
 
-// ─── Shared CSS helpers ───────────────────────────────────────
+// ─── Shared CSS helpers ───────────────────────────────────────---
 export const css = {
   card:    { background: T.ink2, border: `1px solid ${T.border}`, borderRadius: 10, padding: "20px 22px", marginBottom: 14 },
   label:   { fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: T.muted, marginBottom: 5, display: "block" },

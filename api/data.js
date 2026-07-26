@@ -1,5 +1,5 @@
 /**
- * /api/data  — Single data endpoint for all PGOS CRUD operations
+ * /api/data  — Single data endpoint for all PGOS CRUD operations--
  *
  * Body: { resource, action, payload }
  *
