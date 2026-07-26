@@ -18,7 +18,7 @@ export function Dashboard({ setView }) {
     { label: "Total Approved $",     val: `$${(totalInv/1000000).toFixed(1)}M`, color: T.ice, icon: "$", nav: "portfolio" },
   ];
 
-  // ── Pipeline stage groups (simplified) ──────────────────────
+  // ── Pipeline stage groups (simplified) ──────────────────────---
   const STAGE_GROUPS = [
     {
       label: "Define",

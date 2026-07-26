@@ -1649,7 +1649,7 @@ function ChattyBubble({ label, prompt, onSend, disabled }) {
   );
 }
 
-// ─── Chatty ───────────────────────────────────────────────────
+// ─── Chatty ───────────────────────────────────────────────────---
 export function Chatty({ currentView }) {
   const { foundation, initiatives, userName } = useApp();
   const [open, setOpen] = useState(false);

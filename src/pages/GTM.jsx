@@ -218,7 +218,7 @@ export default function GTM() {
     setLoading(p => ({ ...p, [`social_${channel}`]: false }));
   }
 
-  // ── AI Generation ─────────────────────────────────────────
+  // ── AI Generation ─────────────────────────────────────────---
   async function generate(section) {
     if (!ini) return;
     setLoading(p => ({ ...p, [section]: true }));

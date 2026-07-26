@@ -19,7 +19,7 @@ const TextArea = ({ value, onChange, placeholder, rows = 4 }) => (
   />
 );
 
-// ── Launch Calendar Component ────────────────────────────────
+// ── Launch Calendar Component ────────────────────────────────---
 function LaunchCalendar({ tasks, onUpdate }) {
   const [newTask, setNewTask] = useState({ date: "", title: "", owner: "", type: "task" });
   const [showAdd, setShowAdd] = useState(false);
