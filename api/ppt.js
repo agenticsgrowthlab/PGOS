@@ -658,6 +658,7 @@ const PAGE_MAP = {
   investment_contract: { builder: buildDeliveryReadiness, filename: "PGI_DeliveryReadiness.pptx" },
   competitors:{ builder: buildCompetitors,  filename: "PGOS_CompetitiveAnalysis.pptx" },
   leadership: { builder: buildLeadership,   filename: "PGOS_Leadership_Overview.pptx" },
+  gtm:        { builder: (s,o) => buildInitiatives(s,o,"handoff","Go-To-Market — Stage 8"), filename: "PGOS_GTM.pptx" },
   handoff:    { builder: (s,o) => buildInitiatives(s,o,"handoff","Engineering Handoff — Stage 7"), filename: "PGOS_Handoff.pptx" },
   measure:    { builder: buildMeasure,       filename: "PGOS_Measure_Stage8.pptx" },
   outcome:    { builder: buildOutcome,       filename: "PGOS_Outcome_Stage9.pptx" },

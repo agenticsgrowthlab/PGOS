@@ -405,9 +405,12 @@ export function Foundation() {
   if (!foundation) return null;
   const f = foundation;
 
-  const suggest = async (what) => {
+  const [suggestCtx, setSuggestCtx] = useState(""); // which tab triggered suggest
+
+  const suggest = async (what, ctx) => {
     setLoadingAI(true);
     setAiSuggest("");
+    setSuggestCtx(ctx || "");
     const text = await callAI("suggest", { foundation: f, what }).catch(() => "");
     setAiSuggest(text);
     setLoadingAI(false);
@@ -479,7 +482,7 @@ export function Foundation() {
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={css.secHead}>Company OKRs</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={css.btnOut} onClick={() => suggest("3 additional OKRs")}>◆ AI Suggest OKRs</button>
+              <button style={css.btnOut} onClick={() => suggest("3 additional OKRs aligned with the current mission and vision", "okrs")}>◆ AI Suggest OKRs</button>
               <button style={css.btnGhost} onClick={addOKR}>+ Add OKR</button>
             </div>
           </div>
@@ -530,7 +533,12 @@ export function Foundation() {
                 }}>+ Key Result</button>
             </div>
           ))}
-          {(aiSuggest || loadingAI) && <AIBox label="◆ Strategy Advisor" loading={loadingAI}>{aiSuggest}</AIBox>}
+          {(aiSuggest || loadingAI) && suggestCtx === "okrs" && (
+            <AIBox label={`◆ AI OKR Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
+              {aiSuggest}
+              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+            </AIBox>
+          )}
         </div>
       )}
 
@@ -540,7 +548,7 @@ export function Foundation() {
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={css.secHead}>Strategic Themes</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={css.btnOut} onClick={() => suggest("strategic themes aligned with the mission and current OKRs")}>◆ AI Suggest</button>
+              <button style={css.btnOut} onClick={() => suggest("strategic themes aligned with the mission and current OKRs", "strategy")}>◆ AI Suggest</button>
               <button style={css.btnGhost} onClick={addTheme}>+ Add Theme</button>
             </div>
           </div>
@@ -558,7 +566,12 @@ export function Foundation() {
                 onChange={e => { const ns = [...f.strategies]; ns[i] = { ...ns[i], description: e.target.value }; updateThemesLocal(ns); }} />
             </div>
           ))}
-          {(aiSuggest || loadingAI) && <AIBox label="◆ Strategy Advisor" loading={loadingAI}>{aiSuggest}</AIBox>}
+          {(aiSuggest || loadingAI) && suggestCtx === "strategy" && (
+            <AIBox label={`◆ AI Strategic Theme Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
+              {aiSuggest}
+              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+            </AIBox>
+          )}
         </div>
       )}
 
@@ -568,7 +581,7 @@ export function Foundation() {
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={css.secHead}>Business Capabilities</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={css.btnOut} onClick={() => suggest("business capabilities a wealth management platform should have")}>◆ AI Suggest</button>
+              <button style={css.btnOut} onClick={() => suggest(`business capabilities that ${f.name || "this company"} should have based on their mission, vision, and strategic themes`, "capabilities")}>◆ AI Suggest</button>
               <button style={css.btnGhost} onClick={addCapability}>+ Add</button>
             </div>
           </div>
@@ -584,7 +597,12 @@ export function Foundation() {
               </div>
             ))}
           </div>
-          {(aiSuggest || loadingAI) && <AIBox label="◆ Strategy Advisor" loading={loadingAI}>{aiSuggest}</AIBox>}
+          {(aiSuggest || loadingAI) && suggestCtx === "capabilities" && (
+            <AIBox label={`◆ AI Capability Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
+              {aiSuggest}
+              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+            </AIBox>
+          )}
         </div>
       )}
 
@@ -593,7 +611,10 @@ export function Foundation() {
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={css.secHead}>Product Portfolio</div>
-            <button style={css.btnGhost} onClick={addProduct}>+ Add Product</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={css.btnOut} onClick={() => suggest(`3 product ideas or enhancements for ${f.name || "this company"} based on their mission, strategic themes, and capabilities. For each: product name, type (Platform/API/Mobile/Web/Analytics), stage recommendation (Alpha/Beta/GA), and 2-sentence description.`, "products")}>◆ AI Suggest</button>
+              <button style={css.btnGhost} onClick={addProduct}>+ Add Product</button>
+            </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
             {(f.products || []).map((p) => (
@@ -619,6 +640,12 @@ export function Foundation() {
               </div>
             ))}
           </div>
+          {(aiSuggest || loadingAI) && suggestCtx === "products" && (
+            <AIBox label={`◆ AI Product Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
+              {aiSuggest}
+              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+            </AIBox>
+          )}
         </div>
       )}
 

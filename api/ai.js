@@ -169,6 +169,37 @@ For investment_requested: estimate in USD as a number.`;
       break;
     }
 
+    // Aliases for Handoff section keys
+    case "journeys":
+      userContent = `${orgCtx}
+${iniCtx}
+Personas: ${(ini?.personas || "").substring(0, 300)}
+
+Generate TWO sections:
+
+## CURRENT STATE JOURNEY
+Create a Current State Customer Journey Map for the primary persona. Use 5–6 stages. For each stage: Stage Name, What the user DOES, What they THINK/FEEL, Pain Points (specific), Workarounds today. Format with clear stage headers.
+
+## FUTURE STATE JOURNEY
+Create a Future State Journey showing how this initiative transforms the experience. Same 5–6 stages. For each: What the user DOES (new), How they FEEL (improved), Key Gains, Moments of Delight. Be specific about what the technology enables.`;
+      break;
+
+    case "usecases":
+      userContent = `${orgCtx}
+${iniCtx}
+JTBD: ${(ini?.jtbd || "").substring(0, 400)}
+
+Create 4 formal use cases relevant to this initiative and company. For each: UC-ID (UC-01 etc), Title, Primary Actor, Preconditions (2), Main Success Flow (5–7 numbered steps), Alternative Flows (2), Exception Flows (1), Postconditions, Business Value Statement, JTBD Connection.`;
+      break;
+
+    case "risks":
+      userContent = `${orgCtx}
+${iniCtx}
+Epics: ${(ini?.epics || "").substring(0, 400)}
+
+Identify 5–6 risks for this initiative. For each: Risk ID (R-01), Risk Description, Category (Technical/Business/Compliance/Resource/Schedule), Likelihood (H/M/L), Impact (H/M/L), Risk Score, Mitigation Strategy, Recommended Owner role. End with a ROAM status suggestion (Resolved/Owned/Accepted/Mitigated) for each.`;
+      break;
+
     case "pivot_coach":
       userContent = `${iniCtx}\nPIVOT Scores: P=${ini.pivot?.p} I=${ini.pivot?.i} V=${ini.pivot?.v} O=${ini.pivot?.o} T=${ini.pivot?.t}\nWeighted Score: ${payload.score?.toFixed(1)}\nCoach me on improving the weakest dimension.`;
       break;
@@ -579,6 +610,7 @@ const TOKEN_MAP = {
   future_journey: 1800, jtbd: 1600, use_cases: 2000, epics: 2500,
   risk_register: 1800, pi_planning: 2000, handoff: 4000,
   portfolio_analysis: 700, chatty: 700,
+  journeys: 2500, usecases: 2000, risks: 1800,
   suggest_initiatives: 1500, populate_initiative: 3000,
   gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,
   investment_contract: 1200,
