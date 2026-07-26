@@ -200,6 +200,17 @@ Epics: ${(ini?.epics || "").substring(0, 400)}
 Identify 5–6 risks for this initiative. For each: Risk ID (R-01), Risk Description, Category (Technical/Business/Compliance/Resource/Schedule), Likelihood (H/M/L), Impact (H/M/L), Risk Score, Mitigation Strategy, Recommended Owner role. End with a ROAM status suggestion (Resolved/Owned/Accepted/Mitigated) for each.`;
       break;
 
+    case "lessons_learned": {
+      const metricsCtx = (payload.initiatives || []).map(i =>
+        `${i.title} (${i.stage}): NPS=${i.nps_score||"?"}, Adoption=${i.adoption_rate||"?"}%, MAU=${i.monthly_active_users||"?"}, Revenue=$${Number(i.revenue_realized||0).toLocaleString()}, Target Met=${i.target_met?"Yes":"No"}`
+      ).join("\n");
+      const okrCtx = (payload.okrs || []).map(o =>
+        `OKR: ${o.objective} (Progress: ${o.progress||0}%) — KRs: ${(o.key_results||[]).join("; ")}`
+      ).join("\n");
+      userContent = `${orgCtx}\n\nOKR Performance:\n${okrCtx}\n\nInitiative Metrics:\n${metricsCtx}\n\nYou are a Chief Product Officer conducting a portfolio retrospective. Based on OKR progress and initiative performance metrics above, generate:\n\n## AI Retrospective Analysis\n\n### What Worked\nIdentify 3-4 patterns of success across initiatives. Be specific — reference actual metrics where available.\n\n### What Didn't Work\nIdentify 3-4 patterns of underperformance or missed targets. Be direct and constructive.\n\n### Key Learnings\nSynthesize 4-5 actionable learnings the team should carry into the next cycle. Reference evidence.\n\n### OKR Progress Assessment\nFor each OKR with data, assess: on track / at risk / behind. Explain what drove progress or what blocked it.\n\n---\n\n## AI Recommendations: Next Ideas to Advance OKRs\n\nBased on gaps in OKR progress, initiative outcomes, and company mission, recommend 3 high-leverage initiatives the team should consider next. For each:\n- **Title**: Action-oriented initiative name\n- **OKR it advances**: Which specific OKR and KR this pushes forward\n- **Rationale**: Why this is high-leverage given what you learned\n- **Evidence basis**: What metric gap or insight drives this recommendation\n- **Risk**: One key risk to validate before committing`;
+      break;
+    }
+
     case "telemetry":
       userContent = `${orgCtx}
 ${iniCtx}
@@ -703,6 +714,7 @@ const TOKEN_MAP = {
   risk_register: 1800, pi_planning: 2000, handoff: 4000,
   portfolio_analysis: 700, chatty: 700,
   journeys: 2500, usecases: 2000, risks: 1800, prd: 3500, telemetry: 2500, testcases: 2500,
+  lessons_learned: 3000,
   suggest_initiatives: 1500, populate_initiative: 3000,
   gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,
   investment_contract: 1200,

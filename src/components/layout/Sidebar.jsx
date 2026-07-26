@@ -174,8 +174,6 @@ export function Sidebar({ view, setView }) {
       {/* Nav */}
       <nav style={{ flex: 1, padding: "4px 0", overflow: "auto" }}>
 
-        {sectionLabel("Approved")}
-        {navBtn("ncm_framework", "NCM Framework")}
         {navBtn("dashboard",     "Dashboard")}
 
         {sep("s0")}
@@ -221,8 +219,9 @@ export function Sidebar({ view, setView }) {
         {sep("s6")}
 
         {sectionLabel("References")}
-        {navBtn("ref_guide",        "How To Use PGI")}
-        {navBtn("ref_scores",       "Score Methodology")}
+        {navBtn("ncm_framework",     "NCM Framework")}
+        {navBtn("ref_guide",         "How To Use PGI")}
+        {navBtn("ref_scores",        "Score Methodology")}
         {navBtn("thought_leadership","Thought Leadership")}
 
       </nav>

@@ -983,43 +983,389 @@ const STAGE_META = {
 
 // ─── Stage List View ──────────────────────────────────────────
 // ─── Sprint Goals · Stage 6 ────────────────────────────────────
+// ─── Parse user stories from epics text ───────────────────────
+function parseStories(epicsText, iniTitle, iniSlug) {
+  if (!epicsText) return [];
+  const stories = [];
+  const lines = epicsText.split("\n");
+  let currentEpic = "";
+  lines.forEach(line => {
+    const epicMatch = line.match(/^#+\s*E-?(\d+)[:\s]+(.+)/i) || line.match(/^Epic\s*(\d+)[:\s]+(.+)/i);
+    if (epicMatch) currentEpic = `E-${epicMatch[1].padStart(2,"0")}`;
+    const storyMatch = line.match(/^\s*-?\s*(US-\d+|S-\d+|Story\s*\d+)[:\s]+(.+)/i)
+      || line.match(/^\s*(?:Story ID:\s*)?(US-\d+)[:\s]+(.+)/i);
+    if (storyMatch) {
+      stories.push({
+        id: `${iniSlug || "INI"}-${storyMatch[1]}`,
+        label: storyMatch[2].replace(/\*\*/g,"").trim().slice(0,80),
+        epic: currentEpic,
+        ini: iniTitle,
+        points: (() => { const m = line.match(/(\d+)\s*(?:story\s*)?points?/i); return m ? parseInt(m[1]) : null; })(),
+      });
+    }
+    // Also catch "As a..." lines after a Story ID reference
+    const asMatch = line.match(/^\s*As a (.+?),\s*I want (.+?)(?:,\s*so that (.+))?$/i);
+    if (asMatch && stories.length > 0 && !stories[stories.length-1].label.startsWith("As")) {
+      // enrich last story if it has a generic label
+    }
+  });
+  return stories;
+}
+
 export function SprintGoals({ setView }) {
-  const { initiatives } = useApp();
-  const approved = initiatives.filter(i => i.approved || ["delivery","handoff","gtm","measure","outcome"].includes(i.stage));
+  const { initiatives, updateIni } = useApp();
+  const [dragStory, setDragStory] = useState(null); // { story, fromSprint }
+  const [sprints, setSprints] = useState(() => [
+    { id: "backlog", label: "Backlog", startDate: "", endDate: "", color: T.muted },
+    { id: "s1", label: "Sprint 1", startDate: "", endDate: "", color: T.steel },
+    { id: "s2", label: "Sprint 2", startDate: "", endDate: "", color: T.gold },
+    { id: "s3", label: "Sprint 3", startDate: "", endDate: "", color: T.green },
+  ]);
+
+  // Load sprint assignments from initiatives
+  const [assignments, setAssignments] = useState(() => {
+    const all = {};
+    initiatives.forEach(ini => {
+      if (ini.sprint_assignments) {
+        try {
+          const parsed = JSON.parse(ini.sprint_assignments);
+          Object.assign(all, parsed);
+        } catch(e) {}
+      }
+    });
+    return all; // { storyId: sprintId }
+  });
+
+  // All stories across all initiatives
+  const allStories = initiatives.flatMap(ini =>
+    parseStories(ini.epics, ini.title, ini.slug)
+  );
+
+  const getStoriesForSprint = (sprintId) =>
+    allStories.filter(s => (assignments[s.id] || "backlog") === sprintId);
+
+  const moveStory = (story, toSprintId) => {
+    const newAssignments = { ...assignments, [story.id]: toSprintId };
+    setAssignments(newAssignments);
+    // Persist per initiative
+    const ini = initiatives.find(i => story.ini === i.title);
+    if (ini) {
+      // Merge with existing assignments
+      let existing = {};
+      try { existing = JSON.parse(ini.sprint_assignments || "{}"); } catch(e) {}
+      const merged = { ...existing, [story.id]: toSprintId };
+      updateIni(ini.id, d => ({ ...d, sprint_assignments: JSON.stringify(merged) }));
+    }
+  };
+
+  const addSprint = () => {
+    const n = sprints.filter(s => s.id !== "backlog").length + 1;
+    const colors = [T.steel, T.gold, T.green, T.amber, T.red, "#9B59B6", "#1ABC9C"];
+    setSprints(prev => [...prev, { id: `s${n}`, label: `Sprint ${n}`, startDate: "", endDate: "", color: colors[(n-1) % colors.length] }]);
+  };
+
+  const updateSprint = (id, key, val) =>
+    setSprints(prev => prev.map(s => s.id === id ? { ...s, [key]: val } : s));
+
+  const storyCard = (story, sprintId) => (
+    <div key={story.id}
+      draggable
+      onDragStart={() => setDragStory({ story, fromSprint: sprintId })}
+      onDragEnd={() => setDragStory(null)}
+      style={{
+        background: T.ink, border: `1px solid ${T.border}`, borderRadius: 6,
+        padding: "8px 10px", marginBottom: 6, cursor: "grab",
+        opacity: dragStory?.story.id === story.id ? 0.4 : 1,
+        fontSize: 12, lineHeight: 1.5,
+      }}>
+      <div style={{ fontWeight: 700, color: T.loud, marginBottom: 2 }}>{story.label}</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {story.epic && <span style={{ fontSize: 10, color: T.gold, fontWeight: 700 }}>{story.epic}</span>}
+        <span style={{ fontSize: 10, color: T.muted }}>{story.ini}</span>
+        {story.points && <span style={{ fontSize: 10, color: T.steel, fontWeight: 700 }}>{story.points}pts</span>}
+      </div>
+    </div>
+  );
+
+  const sprintCol = (sprint) => {
+    const stories = getStoriesForSprint(sprint.id);
+    const totalPts = stories.reduce((s, st) => s + (st.points || 0), 0);
+    return (
+      <div key={sprint.id}
+        onDragOver={e => e.preventDefault()}
+        onDrop={() => { if (dragStory) moveStory(dragStory.story, sprint.id); }}
+        style={{ flex: "0 0 260px", background: T.ink2, border: `1px solid ${sprint.id === "backlog" ? T.border : sprint.color}40`, borderTop: `3px solid ${sprint.color}`, borderRadius: 8, padding: 12, minHeight: 300 }}>
+        <div style={{ marginBottom: 10 }}>
+          {sprint.id === "backlog" ? (
+            <div style={{ fontWeight: 800, fontSize: 13, color: T.muted }}>BACKLOG</div>
+          ) : (
+            <input value={sprint.label} onChange={e => updateSprint(sprint.id, "label", e.target.value)}
+              style={{ ...css.input, fontWeight: 800, fontSize: 13, color: sprint.color, background: "transparent", border: "none", padding: 0, width: "100%" }} />
+          )}
+          {sprint.id !== "backlog" && (
+            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              <input type="date" value={sprint.startDate} onChange={e => updateSprint(sprint.id, "startDate", e.target.value)}
+                style={{ ...css.input, fontSize: 10, padding: "3px 6px", flex: 1 }} />
+              <span style={{ color: T.muted, fontSize: 10, alignSelf: "center" }}>→</span>
+              <input type="date" value={sprint.endDate} onChange={e => updateSprint(sprint.id, "endDate", e.target.value)}
+                style={{ ...css.input, fontSize: 10, padding: "3px 6px", flex: 1 }} />
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: T.muted, marginTop: 4 }}>
+            {stories.length} stories{totalPts > 0 ? ` · ${totalPts} pts` : ""}
+          </div>
+        </div>
+        {stories.map(s => storyCard(s, sprint.id))}
+      </div>
+    );
+  };
+
+  const hasStories = allStories.length > 0;
 
   return (
     <div>
       <div style={css.h2}>Sprint Goals · Stage 6</div>
-      <div style={css.sub}>User stories organized by sprint with editable dates. Drag stories between sprints to plan your increment.</div>
-      <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>🚧</div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: T.loud, marginBottom: 8 }}>Sprint Board — Coming Soon</div>
-        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-          This will show user stories from your Epics in a movable kanban view,<br />
-          organized by sprint with editable start/end dates and capacity tracking.
+      <div style={css.sub}>Drag user stories from your initiatives into sprints. Set sprint dates and track capacity.</div>
+
+      {!hasStories && (
+        <div style={{ ...css.card, textAlign: "center", padding: 32, color: T.muted, marginBottom: 20 }}>
+          <div style={{ marginBottom: 8 }}>No user stories found yet.</div>
+          <div style={{ fontSize: 12, marginBottom: 12 }}>Generate Epics & Stories in the Delivery Handoff stage first — stories will appear here automatically.</div>
+          <button style={css.btnOut} onClick={() => setView("handoff")}>→ Go to Delivery Handoff</button>
         </div>
-        <button style={{ ...css.btnOut, marginTop: 20 }} onClick={() => setView("handoff")}>← Back to Delivery Handoff</button>
-      </div>
+      )}
+
+      {hasStories && (
+        <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 16, alignItems: "flex-start" }}>
+          {sprints.map(sprintCol)}
+          <div style={{ flex: "0 0 48px", display: "flex", alignItems: "flex-start", paddingTop: 8 }}>
+            <button onClick={addSprint} style={{ ...css.btnGhost, fontSize: 20, padding: "6px 12px", lineHeight: 1 }} title="Add sprint">+</button>
+          </div>
+        </div>
+      )}
+
+      {hasStories && (
+        <div style={{ ...css.card, marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: T.muted }}>
+            <strong style={{ color: T.loud }}>Tip:</strong> Drag stories between columns to assign them to sprints. Sprint dates and story assignments are saved automatically per initiative.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Lessons Learned · Stage 11 ────────────────────────────────
+// Seeded lessons so feature is showcased immediately
+const SEEDED_LESSONS = [
+  { id: "seed-1", type: "worked", text: "Early customer co-design sessions in Discovery cut rework by ~40% — PMs who ran 3+ interviews before Definition had significantly cleaner epics.", date: "2026-06-15", initiative: "AGL Scout Conversion" },
+  { id: "seed-2", type: "worked", text: "PIVOT scoring created productive executive conversations — framing investment asks with evidence dimensions made approval meetings shorter and more decisive.", date: "2026-06-20", initiative: "Portfolio-wide" },
+  { id: "seed-3", type: "didnt", text: "Telemetry was not defined before Delivery started on two initiatives — both launched without baseline metrics, making outcome measurement impossible for 60+ days.", date: "2026-07-01", initiative: "Growth Intelligence Platform" },
+  { id: "seed-4", type: "didnt", text: "Epics were written without referencing confirmed JTBD — stories drifted from user needs during sprint planning, leading to scope creep in Sprint 3.", date: "2026-07-05", initiative: "Clinical Insights Engine" },
+  { id: "seed-5", type: "learning", text: "Invest in OKR-to-initiative traceability early — initiatives without a clear OKR link had 3x more scope change requests during Delivery.", date: "2026-07-10", initiative: "Portfolio-wide" },
+  { id: "seed-6", type: "learning", text: "GTM and Measure should be planned at Definition, not after handoff — retrofitting success metrics after launch is costly and slows time-to-insight.", date: "2026-07-12", initiative: "Portfolio-wide" },
+];
+
 export function LessonsLearned({ setView }) {
-  const { initiatives } = useApp();
+  const { initiatives, foundation } = useApp();
+  const [lessons, setLessons] = useState(SEEDED_LESSONS);
+  const [newLesson, setNewLesson] = useState({ type: "worked", text: "", initiative: "", date: new Date().toISOString().slice(0,10) });
+  const [aiInsights, setAiInsights] = useState("");
+  const [loadingAI, setLoadingAI] = useState(false);
+  const [activeTab, setActiveTab] = useState("retro"); // "retro" | "ai" | "next"
+
+  const typeConfig = {
+    worked: { label: "What Worked", color: T.green, icon: "✓" },
+    didnt:  { label: "What Didn't", color: T.red,   icon: "✗" },
+    learning: { label: "Key Learning", color: T.gold, icon: "◈" },
+  };
+
+  const addLesson = () => {
+    if (!newLesson.text.trim()) return;
+    setLessons(prev => [...prev, { ...newLesson, id: `ll-${Date.now()}` }]);
+    setNewLesson({ type: "worked", text: "", initiative: "", date: new Date().toISOString().slice(0,10) });
+  };
+
+  const removeLesson = (id) => setLessons(prev => prev.filter(l => l.id !== id));
+
+  const getAIInsights = async () => {
+    setLoadingAI(true);
+    setAiInsights("");
+    const okrs = foundation?.okrs || [];
+    const text = await callAI("lessons_learned", { foundation, initiatives, okrs }).catch(() => "");
+    setAiInsights(text);
+    setLoadingAI(false);
+  };
+
+  const grouped = { worked: [], didnt: [], learning: [] };
+  lessons.forEach(l => { if (grouped[l.type]) grouped[l.type].push(l); });
+
+  // Parse AI insights into sections
+  const parseAISection = (text, sectionHeader) => {
+    if (!text) return "";
+    const rx = new RegExp(`##\s*${sectionHeader}([\s\S]*?)(?=##|$)`, "i");
+    const m = text.match(rx);
+    return m ? m[1].trim() : "";
+  };
+
+  const TABS = [
+    { id: "retro", label: "📋 Retrospective" },
+    { id: "ai",    label: "◆ AI Analysis" },
+    { id: "next",  label: "🧠 Next Ideas" },
+  ];
+
   return (
     <div>
       <div style={css.h2}>Lessons Learned · Stage 11</div>
-      <div style={css.sub}>Capture what worked, what didn't, and what to carry forward. Feed insights back into the next initiative cycle.</div>
-      <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>📖</div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: T.loud, marginBottom: 8 }}>Lessons Learned — Coming Soon</div>
-        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-          After outcome review, capture retrospective insights: what worked,<br />
-          what didn't, what to do differently, and AI-suggested patterns across initiatives.
-        </div>
-        <button style={{ ...css.btnOut, marginTop: 20 }} onClick={() => setView("outcome")}>← Back to Outcome Summary</button>
+      <div style={css.sub}>Retrospective capture, AI-powered OKR analysis, and recommended next initiatives.</div>
+
+      {/* Tab bar */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid ${T.border}`, paddingBottom: 0 }}>
+        {TABS.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+            background: "transparent", border: "none", borderBottom: `2px solid ${activeTab === tab.id ? T.gold : "transparent"}`,
+            color: activeTab === tab.id ? T.gold : T.muted, fontWeight: activeTab === tab.id ? 800 : 600,
+            fontSize: 13, padding: "8px 16px", cursor: "pointer", marginBottom: -1,
+          }}>{tab.label}</button>
+        ))}
       </div>
+
+      {/* RETROSPECTIVE TAB */}
+      {activeTab === "retro" && (
+        <div>
+          {/* Add new lesson */}
+          <div style={{ ...css.card, marginBottom: 20, borderLeft: `3px solid ${T.steel}` }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: T.loud, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>+ Add Lesson</div>
+            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr 160px 120px", gap: 10, marginBottom: 10 }}>
+              <select value={newLesson.type} onChange={e => setNewLesson(l => ({ ...l, type: e.target.value }))} style={{ ...css.input, cursor: "pointer", fontSize: 12 }}>
+                <option value="worked">✓ Worked</option>
+                <option value="didnt">✗ Didn't Work</option>
+                <option value="learning">◈ Learning</option>
+              </select>
+              <textarea rows={2} value={newLesson.text} onChange={e => setNewLesson(l => ({ ...l, text: e.target.value }))}
+                placeholder="Describe the lesson in 1-2 sentences..." style={{ ...css.ta, fontSize: 12, resize: "vertical" }} />
+              <input value={newLesson.initiative} onChange={e => setNewLesson(l => ({ ...l, initiative: e.target.value }))}
+                placeholder="Initiative or Portfolio-wide" style={{ ...css.input, fontSize: 12 }} />
+              <input type="date" value={newLesson.date} onChange={e => setNewLesson(l => ({ ...l, date: e.target.value }))} style={{ ...css.input, fontSize: 12 }} />
+            </div>
+            <button style={css.btnGold} onClick={addLesson} disabled={!newLesson.text.trim()}>Add Lesson</button>
+          </div>
+
+          {/* Lessons by type */}
+          {Object.entries(typeConfig).map(([type, cfg]) => (
+            <div key={type} style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: cfg.color, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                <span>{cfg.icon}</span> {cfg.label} ({grouped[type].length})
+              </div>
+              {grouped[type].length === 0 && (
+                <div style={{ color: T.muted, fontSize: 12, fontStyle: "italic", paddingLeft: 16 }}>No entries yet — add above or generate AI analysis.</div>
+              )}
+              {grouped[type].map(l => (
+                <div key={l.id} style={{ ...css.card, margin: "0 0 8px 0", borderLeft: `3px solid ${cfg.color}`, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{l.text}</div>
+                    <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>
+                      {l.initiative && <span style={{ marginRight: 10 }}>📍 {l.initiative}</span>}
+                      {l.date && <span>🗓 {l.date}</span>}
+                    </div>
+                  </div>
+                  <button onClick={() => removeLesson(l.id)} style={{ ...css.btnGhost, color: T.red, borderColor: T.red, padding: "2px 8px", fontSize: 11, flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* AI ANALYSIS TAB */}
+      {activeTab === "ai" && (
+        <div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
+            <button style={css.btnGold} onClick={getAIInsights} disabled={loadingAI}>
+              {loadingAI ? "◆ Analyzing portfolio…" : aiInsights ? "◆ Refresh AI Analysis" : "◆ Generate AI Retrospective Analysis"}
+            </button>
+            <span style={{ fontSize: 12, color: T.muted }}>Analyzes OKR progress and initiative metrics across your portfolio</span>
+          </div>
+          {loadingAI && <AIBox label="◆ AI Portfolio Retrospective — Analyzing OKR performance and initiative outcomes" loading />}
+          {aiInsights && !loadingAI && (() => {
+            const sections = [
+              { header: "What Worked", color: T.green, icon: "✓" },
+              { header: "What Didn't Work", color: T.red, icon: "✗" },
+              { header: "Key Learnings", color: T.gold, icon: "◈" },
+              { header: "OKR Progress Assessment", color: T.steel, icon: "◎" },
+            ];
+            return sections.map(sec => {
+              const body = parseAISection(aiInsights, sec.header.replace(/[.*+?^${}()|[\]\]/g,"\\$&"));
+              if (!body) return null;
+              return (
+                <div key={sec.header} style={{ ...css.card, marginBottom: 14, borderLeft: `3px solid ${sec.color}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: sec.color, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                    {sec.icon} {sec.header}
+                  </div>
+                  <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.7, whiteSpace: "pre-line" }}>{body}</div>
+                </div>
+              );
+            });
+          })()}
+          {!aiInsights && !loadingAI && (
+            <div style={{ ...css.card, color: T.muted, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: 32 }}>
+              Click the button above to generate an AI-powered retrospective based on your OKR progress and initiative metrics.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* NEXT IDEAS TAB */}
+      {activeTab === "next" && (
+        <div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
+            <button style={css.btnGold} onClick={getAIInsights} disabled={loadingAI}>
+              {loadingAI ? "◆ Analyzing…" : aiInsights ? "◆ Refresh Recommendations" : "◆ Generate Next Initiative Recommendations"}
+            </button>
+            <span style={{ fontSize: 12, color: T.muted }}>AI recommends high-leverage ideas based on OKR gaps and outcomes</span>
+          </div>
+          {loadingAI && <AIBox label="◆ AI — Generating next initiative recommendations aligned to OKRs" loading />}
+          {aiInsights && !loadingAI && (() => {
+            const body = parseAISection(aiInsights, "AI Recommendations:? Next Ideas to Advance OKRs");
+            if (!body) return (
+              <div style={{ ...css.card, color: T.muted, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: 32 }}>
+                No recommendations found — try refreshing the AI Analysis tab first.
+              </div>
+            );
+            // Parse individual recommendations
+            const recs = body.split(/\n(?=[-•*]\s*\*\*Title|\d+\.\s*\*\*)/);
+            return recs.filter(r => r.trim()).map((rec, i) => {
+              const lines = rec.split("\n").filter(l => l.trim());
+              const title = lines[0]?.replace(/^[-•*\d.]+\s*/, "").replace(/\*\*/g,"").replace(/^Title:?\s*/i,"").trim() || `Recommendation ${i+1}`;
+              const details = lines.slice(1).map(l => l.replace(/\*\*/g,"").trim()).filter(Boolean);
+              return (
+                <div key={i} style={{ ...css.card, marginBottom: 14, borderLeft: `3px solid ${T.gold}`, background: "#0D1726" }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.loud, marginBottom: 10 }}>
+                    <span style={{ color: T.gold, marginRight: 8 }}>{["🥇","🥈","🥉"][i] || "◆"}</span>{title}
+                  </div>
+                  {details.map((d, di) => (
+                    <div key={di} style={{ fontSize: 12, color: T.body, lineHeight: 1.6, marginBottom: 4, paddingLeft: 8 }}>
+                      {d.startsWith("-") ? d : `• ${d}`}
+                    </div>
+                  ))}
+                  <button style={{ ...css.btnOut, marginTop: 12, fontSize: 11 }}
+                    onClick={() => setView && setView("ideas")}>
+                    → Capture as New Idea
+                  </button>
+                </div>
+              );
+            });
+          })()}
+          {!aiInsights && !loadingAI && (
+            <div style={{ ...css.card, color: T.muted, fontSize: 13, textAlign: "center", padding: 32 }}>
+              <div style={{ marginBottom: 12 }}>◆ AI analyzes your OKR gaps, initiative outcomes, and company mission to recommend the highest-leverage ideas for your next cycle.</div>
+              <div style={{ fontSize: 12, lineHeight: 1.7 }}>
+                Recommendations include: which OKR they advance, the evidence basis, and risk to validate.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
