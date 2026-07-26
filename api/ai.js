@@ -384,23 +384,97 @@ Include: pre-launch prep, internal enablement, soft launch, campaign activations
 
     case "gtm_social": {
       const ini = payload.ini || {};
-      userContent = `You are a B2B content strategist. Create a full 30-day launch content calendar for this initiative. Return ONLY a valid JSON object, no markdown fences.
+      const channel = payload.channel || "LinkedIn";
+      const channelPrompts = {
+        "LinkedIn": `Write a 30-day LinkedIn content plan for this product launch. Return ONLY a plain text string, no JSON, no markdown fences.
 
 Initiative: ${ini.title}
 ICP: ${ini.gtm_icp || ""}
 Positioning: ${ini.gtm_positioning || ""}
-Value Props: ${(ini.gtm_value_prop || "").substring(0, 300)}
-Campaign Intel: ${(ini.gtm_campaign_intel || "").substring(0, 300)}
-Channel Strategy: ${(ini.gtm_channel_strategy || "").substring(0, 200)}
+Value Props: ${(ini.gtm_value_prop || "").substring(0, 200)}
 
-Return a JSON object with exactly these keys. Each channel gets a 30-DAY content plan:
-{
-  "LinkedIn": "30 posts numbered Day 1 through Day 30. Each post on its own line formatted as: Day N: [post content 50-80 words]. Mix problem awareness, social proof, feature spotlights, customer stories, tips, and CTAs. Vary tone.",
-  "Twitter/X": "30 tweets numbered Day 1 through Day 30. Each on its own line: Day N: [tweet under 280 chars]. Mix announcements, tips, questions, stats, and engagement hooks.",
-  "Email": "4 emails for weeks 1-4. Each formatted as: WEEK N — Subject: [subject] | Body: [150 word email body]. Week 1=announcement, Week 2=value deep dive, Week 3=social proof, Week 4=CTA/urgency.",
-  "Blog": "4 blog post outlines for weeks 1-4. Each: WEEK N — Title: [title] | Outline: [5 section headers with one-sentence summaries each].",
-  "Press Release": "One launch press release: Headline, dateline, lede paragraph (who/what/when/where/why), quote from PM, product details paragraph, company boilerplate."
-}`;
+Write exactly 30 LinkedIn posts, one per line, formatted as:
+Day 1: [post content 60-80 words]
+Day 2: [post content 60-80 words]
+...Day 30: [post content]
+
+Mix: problem awareness (days 1-5), product intro (6-10), feature spotlights (11-15), social proof (16-20), tips/education (21-25), CTA/urgency (26-30). Vary tone and hooks.`,
+
+        "Twitter/X": `Write a 30-day Twitter/X content plan for this product launch. Return ONLY plain text, no JSON, no fences.
+
+Initiative: ${ini.title}
+ICP: ${ini.gtm_icp || ""}
+Positioning: ${ini.gtm_positioning || ""}
+
+Write exactly 30 tweets, one per line, formatted as:
+Day 1: [tweet under 280 chars]
+Day 2: [tweet under 280 chars]
+...Day 30: [tweet]
+
+Mix: announcements, tips, questions, stats, threads, engagement hooks, CTAs.`,
+
+        "Email": `Write a 4-week email nurture sequence for this product launch. Return ONLY plain text, no JSON, no fences.
+
+Initiative: ${ini.title}
+ICP: ${ini.gtm_icp || ""}
+Positioning: ${ini.gtm_positioning || ""}
+Value Props: ${(ini.gtm_value_prop || "").substring(0, 200)}
+
+Write 4 emails formatted as:
+WEEK 1 — Subject: [subject line]
+[150-word email body]
+
+WEEK 2 — Subject: [subject line]
+[150-word email body]
+
+WEEK 3 — Subject: [subject line]
+[150-word email body]
+
+WEEK 4 — Subject: [subject line]
+[150-word email body]
+
+Week 1=announcement, Week 2=value deep dive, Week 3=social proof/case study, Week 4=urgency/CTA.`,
+
+        "Blog": `Write 4 blog post outlines for a 30-day product launch campaign. Return ONLY plain text, no JSON, no fences.
+
+Initiative: ${ini.title}
+ICP: ${ini.gtm_icp || ""}
+Positioning: ${ini.gtm_positioning || ""}
+
+Write 4 outlines formatted as:
+WEEK 1 — Title: [SEO-optimized title]
+Section 1: [header — one sentence summary]
+Section 2: [header — one sentence summary]
+Section 3: [header — one sentence summary]
+Section 4: [header — one sentence summary]
+Section 5: [header — one sentence summary]
+
+Repeat for WEEK 2, WEEK 3, WEEK 4. Topics: problem awareness, product deep dive, customer success, future vision.`,
+
+        "Press Release": `Write a product launch press release. Return ONLY plain text, no JSON, no fences.
+
+Initiative: ${ini.title}
+ICP: ${ini.gtm_icp || ""}
+Positioning: ${ini.gtm_positioning || ""}
+
+Format:
+FOR IMMEDIATE RELEASE
+[Headline]
+
+[City, Date] — [Lede paragraph: who, what, when, where, why — 50 words]
+
+[Body paragraph: product details, key features, business value — 75 words]
+
+"[Quote from PM or CEO — 30 words]"
+
+[Call to action paragraph — 30 words]
+
+About [Company]: [Boilerplate — 40 words]
+
+###`
+      };
+
+      userContent = channelPrompts[channel] || channelPrompts["LinkedIn"];
       break;
     }
 
@@ -427,7 +501,7 @@ const TOKEN_MAP = {
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
   risk_register: 900, pi_planning: 1200, handoff: 1500,
   portfolio_analysis: 700, chatty: 700,
-  gtm_full: 4000, gtm_calendar: 2000, gtm_social: 6000,
+  gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,
   investment_contract: 1200,
   bootstrap_company: 8000,
 };

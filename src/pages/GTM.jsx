@@ -116,7 +116,7 @@ function LaunchCalendar({ tasks, onUpdate }) {
 }
 
 // ── Social Posts Component ────────────────────────────────────
-function SocialPosts({ posts, onUpdate }) {
+function SocialPosts({ posts, onUpdate, loading, onGenerate }) {
   const CHANNELS = ["LinkedIn", "Twitter/X", "Email", "Blog", "Press Release"];
 
   function updatePost(channel, value) {
@@ -125,18 +125,36 @@ function SocialPosts({ posts, onUpdate }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {CHANNELS.map(ch => (
-        <div key={ch}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 4 }}>{ch}</div>
-          <TextArea
-            value={(posts || {})[ch] || ""}
-            onChange={v => updatePost(ch, v)}
-            placeholder={`${ch} post or content...`}
-            rows={20}
-          />
-        </div>
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {CHANNELS.map(ch => {
+        const hasContent = !!(posts || {})[ch];
+        const isLoading = loading[`social_${ch}`];
+        return (
+          <div key={ch}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>{ch}</div>
+              <button
+                onClick={() => onGenerate(ch)}
+                disabled={isLoading}
+                style={{ fontSize: 10, fontWeight: 700, color: T.gold, background: "transparent", border: `1px solid ${T.gold}`, borderRadius: 4, padding: "2px 8px", cursor: "pointer", opacity: isLoading ? 0.5 : 1 }}>
+                {isLoading ? "◆ Writing..." : hasContent ? "◆ Append 30 More" : "◆ Generate 30 Days"}
+              </button>
+              {hasContent && !isLoading && (
+                <button onClick={() => navigator.clipboard.writeText((posts || {})[ch] || "")}
+                  style={{ fontSize: 10, color: T.muted, background: "transparent", border: `1px solid #2A3A5C`, borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>
+                  Copy
+                </button>
+              )}
+            </div>
+            <TextArea
+              value={(posts || {})[ch] || ""}
+              onChange={v => updatePost(ch, v)}
+              placeholder={`Click "Generate 30 Days" to create ${ch} content...`}
+              rows={20}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -176,6 +194,29 @@ export default function GTM() {
     setSocialPosts(posts);
     await save({ gtm_social_posts: JSON.stringify(posts) });
   }, [save]);
+
+  // ── Per-channel content generation ───────────────────────────
+  async function generateChannel(channel) {
+    if (!ini) return;
+    setLoading(p => ({ ...p, [`social_${channel}`]: true }));
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "gtm_social", payload: { ini, channel } }),
+      });
+      const data = await res.json();
+      const text = (data.text || "").trim();
+      if (!text) throw new Error(data.error || "Empty response");
+      setSocialPosts(prev => {
+        const existing = (prev[channel] || "").trim();
+        const merged = { ...prev, [channel]: existing ? existing + "\n\n---\n\n" + text : text };
+        saveSocial(merged);
+        return merged;
+      });
+    } catch(err) { console.error("GTM channel error:", channel, err); }
+    setLoading(p => ({ ...p, [`social_${channel}`]: false }));
+  }
 
   // ── AI Generation ─────────────────────────────────────────
   async function generate(section) {
@@ -232,22 +273,8 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
         });
       } else if (section === "calendar") {
         await saveCalendar(parsed);
-      } else if (section === "social") {
-        // Append to existing content rather than overwrite
-        setSocialPosts(prev => {
-          const merged = {};
-          const CHANNELS = ["LinkedIn", "Twitter/X", "Email", "Blog", "Press Release"];
-          CHANNELS.forEach(ch => {
-            const existing = (prev[ch] || "").trim();
-            const incoming = (parsed[ch] || "").trim();
-            merged[ch] = existing
-              ? existing + "\n\n---\n\n" + incoming
-              : incoming;
-          });
-          saveSocial(merged);
-          return merged;
-        });
       }
+      // social is handled separately via generateChannel()
     } catch (err) {
       console.error("GTM AI error:", err);
     }
@@ -290,9 +317,7 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
         <button style={css.btnOut} onClick={() => generate("calendar")} disabled={loading.calendar}>
           {loading.calendar ? "◆ Building Calendar..." : "◆ Generate Launch Calendar"}
         </button>
-        <button style={css.btnOut} onClick={() => generate("social")} disabled={loading.social}>
-          {loading.social ? "◆ Writing 30-Day Content..." : socialPosts && Object.keys(socialPosts).length ? "◆ Append 30 More Days" : "◆ Generate 30-Day Content Calendar"}
-        </button>
+
       </div>
 
       {/* ICP + Positioning */}
@@ -383,7 +408,7 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
 
       {/* Social / Launch Content */}
       <Section title="30-Day Launch Content Calendar (LinkedIn · Twitter/X · Email · Blog · Press Release)">
-        <SocialPosts posts={socialPosts} onUpdate={saveSocial} />
+        <SocialPosts posts={socialPosts} onUpdate={saveSocial} loading={loading} onGenerate={generateChannel} />
       </Section>
 
       {/* Notes */}
