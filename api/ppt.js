@@ -647,8 +647,8 @@ async function buildOutcome(sql, org) {
 
 // ─── STAGE 8: CAMPAIGN LAUNCH ──────────────────────────────────
 async function buildCampaignLaunch(sql, org) {
-  const initiatives = await sql\`SELECT * FROM initiatives WHERE org_id=\${org.id} AND stage IN ('gtm','measure','closed') ORDER BY sort_order\`;
-  const pres = makePres(\`\${org.name} — Campaign Launch\`);
+  const initiatives = await sql`SELECT * FROM initiatives WHERE org_id=${org.id} AND stage IN ('gtm','measure','closed') ORDER BY sort_order`;
+  const pres = makePres(`${org.name} — Campaign Launch`);
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
   addCover(pres, "Stage 8: Campaign Launch", "Go-to-market execution, launch calendar & content strategy", today);
@@ -664,15 +664,13 @@ async function buildCampaignLaunch(sql, org) {
     ].filter(r => r.value));
 
     // Launch calendar slide
-    if (ini.launch_calendar && Array.isArray(JSON.parse(ini.launch_calendar || "[]"))) {
-      let cal;
-      try { cal = JSON.parse(ini.launch_calendar); } catch(e) { cal = []; }
-      if (cal.length) {
-        contentSlide(pres, \`Launch Calendar — \${ini.title}\`, cal.slice(0, 10).map(t => ({
-          label: t.date ? new Date(t.date).toLocaleDateString("en-US", {month:"short", day:"numeric"}) : "TBD",
-          value: \`[\${(t.type||"task").toUpperCase()}] \${t.title}\${t.owner ? \` · \${t.owner}\` : ""}\`,
-        })));
-      }
+    let cal = [];
+    try { cal = JSON.parse(ini.launch_calendar || ini.gtm_calendar || "[]"); } catch(e) {}
+    if (cal.length) {
+      contentSlide(pres, `Launch Calendar — ${ini.title}`, cal.slice(0, 10).map(t => ({
+        label: t.date ? new Date(t.date).toLocaleDateString("en-US", {month:"short", day:"numeric"}) : "TBD",
+        value: `[${(t.type||"task").toUpperCase()}] ${t.title}${t.owner ? ` · ${t.owner}` : ""}`,
+      })));
     }
 
     // Content calendar slide
@@ -692,8 +690,8 @@ async function buildCampaignLaunch(sql, org) {
 
 // ─── STAGE 6: SPRINT GOALS ─────────────────────────────────────
 async function buildSprintGoals(sql, org) {
-  const initiatives = await sql\`SELECT * FROM initiatives WHERE org_id=\${org.id} AND approved=true ORDER BY sort_order\`;
-  const pres = makePres(\`\${org.name} — Sprint Goals\`);
+  const initiatives = await sql`SELECT * FROM initiatives WHERE org_id=${org.id} AND approved=true ORDER BY sort_order`;
+  const pres = makePres(`${org.name} — Sprint Goals`);
   const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
   addCover(pres, "Stage 6: Sprint Goals", "User story assignments, sprint goals & capacity planning", today);
@@ -717,11 +715,12 @@ async function buildSprintGoals(sql, org) {
     ]);
 
     if (storyLines.length) {
-      contentSlide(pres, \`User Stories — \${ini.title}\`, storyLines.map(l => l));
+      contentSlide(pres, `User Stories — ${ini.title}`, storyLines);
     }
   }
   return pres;
 }
+
 
 
 // ─── Page router ──────────────────────────────────────────────

@@ -5,6 +5,8 @@ import { bootstrapCompany } from "../../lib/api";
 
 export function Sidebar({ view, setView }) {
   const { initiatives, orgs, orgId, switchOrg, addOrg, switchingOrg } = useApp();
+  const approved = initiatives.filter(i => i.approved).length;
+  const total = initiatives.length;
   // New org modal state
   const [showNewOrgModal, setShowNewOrgModal] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
