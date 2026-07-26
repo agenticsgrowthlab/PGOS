@@ -575,9 +575,9 @@ About [Company]: [Boilerplate — 40 words]
 // ─── Token budget per action ──────────────────────────────────
 const TOKEN_MAP = {
   suggest: 600, clarify: 500, pivot_coach: 300, eng_estimate: 400,
-  exec_brief: 1200, one_pager: 600, personas: 1100, current_journey: 900,
-  future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
-  risk_register: 900, pi_planning: 1200, handoff: 4000,
+  exec_brief: 1200, one_pager: 600, personas: 1100, current_journey: 1800,
+  future_journey: 1800, jtbd: 1600, use_cases: 2000, epics: 2500,
+  risk_register: 1800, pi_planning: 2000, handoff: 4000,
   portfolio_analysis: 700, chatty: 700,
   suggest_initiatives: 1500, populate_initiative: 3000,
   gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,

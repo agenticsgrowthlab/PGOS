@@ -641,6 +641,56 @@ function GoNoGo({ ini }) {
   );
 }
 
+// ─── PI Tab — inline generate for Handoff stage ───────────────
+function PITab({ ini, updateIni }) {
+  const { initiatives, foundation } = useApp();
+  const [loading, setLoading] = useState(false);
+
+  const genPI = async () => {
+    setLoading(true);
+    const text = await callAI("pi_planning", { foundation, initiatives }).catch(() => "");
+    if (text) {
+      // Update this ini + all approved
+      updateIni(ini.id, d => ({ ...d, piPlanning: text }));
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
+        {[
+          ["Teams", ini.engSpend?.teams || ini.eng_teams || "—", T.steel],
+          ["Sprints", ini.engSpend?.sprints || ini.eng_sprints || "—", T.gold],
+          ["Estimate", ini.engSpend?.estimate || ini.investment_requested
+            ? `$${Number(ini.engSpend?.estimate || ini.investment_requested || 0).toLocaleString()}` : "—", T.green],
+        ].map(([l,v,c]) => (
+          <div key={l} style={{ background: "#1C2640", borderRadius: 8, padding: 14, textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em" }}>{l}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: c, marginTop: 4 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <button style={css.btnGold} onClick={genPI} disabled={loading}>
+          {loading ? "Generating…" : "◆ Generate PI Planning Package"}
+        </button>
+        {loading && <AIBox label="◆ PI Planning — Building Package" loading />}
+      </div>
+      {ini.piPlanning ? (
+        <div style={{ background: "#1C2640", borderRadius: 8, padding: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>PI Planning Package</div>
+          <TextSection text={ini.piPlanning} placeholder="" />
+        </div>
+      ) : (
+        <div style={{ background: "#1C2640", borderRadius: 8, padding: 16, color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>
+          No PI Planning package generated yet. Click the button above to generate objectives, risks, dependencies, capacity assessment, and confidence vote.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Handoff() {
   const { initiatives, foundation, updateIni } = useApp();
   const [selected, setSelected]     = useState("");
@@ -730,26 +780,7 @@ export function Handoff() {
       case "risks":
         return <RiskCards text={ini.riskReg} />;
       case "pi":
-        return (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
-              {[
-                ["Teams", ini.engSpend?.teams || "—", T.steel],
-                ["Sprints", ini.engSpend?.sprints || "—", T.gold],
-                ["Estimate", ini.engSpend?.estimate ? `$${Number(ini.engSpend.estimate).toLocaleString()}` : "—", T.green],
-              ].map(([l,v,c]) => (
-                <div key={l} style={{ background: "#1C2640", borderRadius: 8, padding: 14, textAlign: "center" }}>
-                  <div style={{ fontSize: 10, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em" }}>{l}</div>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: c, marginTop: 4 }}>{v}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ background: "#1C2640", borderRadius: 8, padding: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>PI Planning Objectives</div>
-              <TextSection text={ini.piPlanning} placeholder="PI Planning not generated yet. Run PI Planning from the Portfolio stage." />
-            </div>
-          </div>
-        );
+        return <PITab ini={ini} updateIni={updateIni} />;
       case "gonogo":
         return <GoNoGo ini={ini} />;
       default:

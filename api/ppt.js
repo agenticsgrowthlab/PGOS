@@ -75,6 +75,15 @@ function addDivider(pres, sectionTitle) {
   return slide;
 }
 
+function addSection(pres, sectionTitle, subtitle) {
+  const slide = pres.addSlide();
+  slide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 13.3, h: 7.5, fill: { color: B.navy } });
+  slide.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: 7.5, fill: { color: B.gold } });
+  slide.addText(sectionTitle, { x: 0.5, y: 2.5, w: 12, h: 1.2, fontSize: 36, bold: true, color: B.white });
+  if (subtitle) slide.addText(subtitle, { x: 0.5, y: 3.8, w: 12, h: 0.5, fontSize: 16, color: B.gold, italic: true });
+  return slide;
+}
+
 // Standard content slide
 function contentSlide(pres, heading, items, opts = {}) {
   const slide = pres.addSlide();
@@ -649,6 +658,7 @@ const PAGE_MAP = {
   investment_contract: { builder: buildDeliveryReadiness, filename: "PGI_DeliveryReadiness.pptx" },
   competitors:{ builder: buildCompetitors,  filename: "PGOS_CompetitiveAnalysis.pptx" },
   leadership: { builder: buildLeadership,   filename: "PGOS_Leadership_Overview.pptx" },
+  handoff:    { builder: (s,o) => buildInitiatives(s,o,"handoff","Engineering Handoff — Stage 7"), filename: "PGOS_Handoff.pptx" },
   measure:    { builder: buildMeasure,       filename: "PGOS_Measure_Stage8.pptx" },
   outcome:    { builder: buildOutcome,       filename: "PGOS_Outcome_Stage9.pptx" },
 };
