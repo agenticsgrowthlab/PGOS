@@ -467,6 +467,9 @@ async function handleInitiatives(sql, action, payload) {
           epics                   = COALESCE(${t(r.epics)}::text,                   epics),
           risk_register           = COALESCE(${t(r.risk_register)}::text,           risk_register),
           pi_planning             = COALESCE(${t(r.pi_planning)}::text,             pi_planning),
+          prd                     = COALESCE(${t(r.prd)}::text,                     prd),
+          telemetry               = COALESCE(${t(r.telemetry)}::text,               telemetry),
+          testcases               = COALESCE(${t(r.testcases)}::text,               testcases),
           handoff_package         = COALESCE(${t(r.handoff_package)}::text,         handoff_package)
         WHERE id = ${id}
         RETURNING *

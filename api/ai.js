@@ -200,6 +200,98 @@ Epics: ${(ini?.epics || "").substring(0, 400)}
 Identify 5–6 risks for this initiative. For each: Risk ID (R-01), Risk Description, Category (Technical/Business/Compliance/Resource/Schedule), Likelihood (H/M/L), Impact (H/M/L), Risk Score, Mitigation Strategy, Recommended Owner role. End with a ROAM status suggestion (Resolved/Owned/Accepted/Mitigated) for each.`;
       break;
 
+    case "telemetry":
+      userContent = `${orgCtx}
+${iniCtx}
+Epics: ${(ini?.epics || "").substring(0, 400)}
+
+Generate a Telemetry Readiness Plan for this initiative. Include:
+
+## 1. Key Events to Track
+List 10-15 specific user/system events to instrument (event name, trigger, payload fields).
+
+## 2. Business Metrics
+5-7 business KPIs this telemetry will feed, with measurement approach.
+
+## 3. Technical Instrumentation Checklist
+Specific items engineering must implement before launch (logging, tracking IDs, dashboards, alerts).
+
+## 4. Baseline & Benchmarks
+What baseline data needs to be captured before launch to enable before/after comparison.
+
+## 5. Data Governance
+Retention policy, PII handling, access controls, and compliance considerations.
+
+## 6. Definition of Telemetry Done
+5-7 acceptance criteria confirming telemetry is production-ready.`;
+      break;
+
+    case "testcases":
+      userContent = `${orgCtx}
+${iniCtx}
+Epics: ${(ini?.epics || "").substring(0, 400)}
+Use Cases: ${(ini?.usecases || "").substring(0, 400)}
+
+Generate a Test Case Suite for this initiative. Include:
+
+## 1. Happy Path Test Cases
+8-10 test cases for the primary success flows (TC-01 format). Each: Title, Preconditions, Steps, Expected Result, Priority.
+
+## 2. Edge Case Tests
+5-6 test cases for boundary conditions and unusual inputs.
+
+## 3. Error & Failure Tests
+4-5 test cases for error handling, timeouts, and system failures.
+
+## 4. Regression Tests
+4-5 tests to ensure existing functionality is not broken.
+
+## 5. Performance Tests
+3-4 performance/load test scenarios with acceptance thresholds.
+
+## 6. Accessibility Tests
+3-4 accessibility test cases (WCAG 2.1 AA compliance).`;
+      break;
+
+    case "prd":
+      userContent = `${orgCtx}
+${iniCtx}
+Personas: ${(ini?.personas || "").substring(0, 300)}
+JTBD: ${(ini?.jtbd || "").substring(0, 300)}
+
+Write a complete Product Requirements Document (PRD) for this initiative. Include:
+
+## 1. Executive Summary
+2-3 sentences: problem, solution, business impact.
+
+## 2. Problem Statement
+Detailed problem definition: who, what, frequency, cost of status quo.
+
+## 3. Goals & Success Metrics
+Primary goal + 3-4 measurable success metrics with targets.
+
+## 4. User Personas & Use Cases
+Summarize the 2-3 primary personas and their core use cases.
+
+## 5. Functional Requirements
+Numbered list of 8-12 specific functional requirements (FR-01 through FR-12). Each: requirement statement + priority (P0/P1/P2).
+
+## 6. Non-Functional Requirements
+4-6 NFRs: performance, security, scalability, accessibility.
+
+## 7. Out of Scope
+4-5 explicit items that are NOT in scope for this release.
+
+## 8. Dependencies & Risks
+3-4 key dependencies and 3-4 risks with mitigations.
+
+## 9. Open Questions
+3-5 questions that need resolution before development begins.
+
+## 10. Acceptance Criteria
+5-7 Given/When/Then acceptance criteria for the MVP.`;
+      break;
+
     case "pivot_coach":
       userContent = `${iniCtx}\nPIVOT Scores: P=${ini.pivot?.p} I=${ini.pivot?.i} V=${ini.pivot?.v} O=${ini.pivot?.o} T=${ini.pivot?.t}\nWeighted Score: ${payload.score?.toFixed(1)}\nCoach me on improving the weakest dimension.`;
       break;
@@ -610,7 +702,7 @@ const TOKEN_MAP = {
   future_journey: 1800, jtbd: 1600, use_cases: 2000, epics: 2500,
   risk_register: 1800, pi_planning: 2000, handoff: 4000,
   portfolio_analysis: 700, chatty: 700,
-  journeys: 2500, usecases: 2000, risks: 1800,
+  journeys: 2500, usecases: 2000, risks: 1800, prd: 3500, telemetry: 2500, testcases: 2500,
   suggest_initiatives: 1500, populate_initiative: 3000,
   gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,
   investment_contract: 1200,

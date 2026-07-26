@@ -6,7 +6,7 @@ import { LoadingScreen, ErrorScreen } from "./components/ui";
 import { Dashboard } from "./pages/Dashboard";
 import { Foundation } from "./pages/Foundation";
 import { Ideas, InitiativeDetail } from "./pages/InitiativeDetail";
-import { Portfolio, PIPlanning, Handoff, StageList, Chatty } from "./pages/Portfolio";
+import { Portfolio, PIPlanning, Handoff, StageList, Chatty, SprintGoals, LessonsLearned, ThoughtLeadership } from "./pages/Portfolio";
 import Measure from "./pages/Measure";
 import OutcomeSummary from "./pages/OutcomeSummary";
 import GTM from "./pages/GTM";
@@ -90,24 +90,26 @@ function Inner() {
     : null;
 
   // Stage list mappings
-  const STAGE_VIEWS = {
-    discovery: { filter: "discovery", title: "Discovery" },
-    execreview: { filter: "review", title: "Executive Review" },
-    definition: { filter: "definition", title: "Product Definition" },
-    delivery: { filter: "delivery", title: "Delivery Planning" },
-  };
+  const STAGE_VIEWS = {};
 
   const getContent = () => {
-    if (view === "dashboard")    return <Dashboard setView={setView} />;
-    if (view === "foundation")   return <Foundation />;
-    if (view === "ideas")        return <Ideas setView={setView} />;
-    if (view === "portfolio")    return <Portfolio />;
+    if (view === "dashboard")         return <Dashboard setView={setView} />;
+    if (view === "ncm_framework")     return <RefFramework setView={setView} />;
+    if (view === "foundation")        return <Foundation />;
+    if (view === "ideas")             return <Ideas setView={setView} />;
+    if (view === "discovery")         return <StageList stageFilter="discovery" title="Product Discovery · Stage 2" setView={setView} />;
+    if (view === "portfolio")         return <Portfolio setView={setView} />;
+    if (view === "roadmap")           return <PIPlanning />;
     if (view === "investment_contract") return <InvestmentContract />;
-    if (view === "delivery")     return <PIPlanning />;
-    if (view === "handoff")      return <Handoff />;
-    if (view === "gtm")          return <GTM />;
-    if (view === "measure")      return <Measure />;
-    if (view === "outcome")      return <OutcomeSummary />;
+    if (view === "handoff")           return <Handoff />;
+    if (view === "sprint_goals")      return <SprintGoals setView={setView} />;
+    if (view === "gtm")               return <GTM />;
+    if (view === "measure")           return <Measure />;
+    if (view === "measure_data")      return <Measure />;
+    if (view === "outcome")           return <OutcomeSummary />;
+    if (view === "lessons")           return <LessonsLearned setView={setView} />;
+    if (view === "thought_leadership") return <ThoughtLeadership />;
+    if (view === "ref_framework")     return <RefFramework setView={setView} />;
     if (view === "ref_framework") return <RefFramework setView={setView} />;
     if (view === "ref_guide")    return <RefGuide setView={setView} />;
     if (view === "ref_scores")   return <ScoreMath setView={setView} />;
@@ -133,20 +135,23 @@ function Inner() {
         <div style={{ background: T.ink2, borderBottom: `1px solid ${T.border}`, padding: "12px 32px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 40 }}>
           {activeIni && (
             <button style={css.btnGhost} onClick={() => {
-              const stageToView = { discovery: "discovery", review: "execreview", approved: "execreview", definition: "definition", delivery: "delivery", handoff: "handoff" };
+              const stageToView = { discovery: "discovery", review: "portfolio", approved: "portfolio", definition: "portfolio", delivery: "delivery", handoff: "handoff" };
               setView(stageToView[activeIni.stage] || "ideas");
             }}>← Back</button>
           )}
           <span style={{ fontSize: 15, fontWeight: 700, color: T.loud }}>
             {activeIni ? activeIni.title : ({
-              dashboard: "Dashboard", foundation: "Foundation",
-              ideas: "Ideas · Stage 1", discovery: "Discovery · Stage 2",
-              execreview: "Executive Review · Stage 3", portfolio: "Portfolio · Stage 4",
-              definition: "Product Definition · Stage 5", investment_contract: "Delivery Readiness · Stage 5.5", delivery: "Delivery · Stage 6",
-              handoff: "Handoff · Stage 7", gtm: "Go-To-Market · Stage 8", measure: "Measure · Stage 9",
-              outcome: "Outcome Summary · Stage 10", ref_framework: "NCM PM Framework",
-              ref_guide: "How To Use PGI",
-              ref_scores: "Score Methodology",
+              dashboard: "Dashboard", foundation: "Enterprise Foundation",
+              ncm_framework: "NCM Framework",
+              ideas: "New Ideas · Stage 1", discovery: "Product Discovery · Stage 2",
+              portfolio: "Portfolio Review · Stage 3", roadmap: "Roadmap Planning · Stage 4",
+              handoff: "Delivery Handoff · Stage 5", sprint_goals: "Sprint Goals · Stage 6",
+              gtm: "GTM Strategy · Stage 7", measure: "Campaign Launch · Stage 8",
+              measure_data: "Measure · Stage 9", outcome: "Outcome Summary · Stage 10",
+              lessons: "Lessons Learned · Stage 11",
+              investment_contract: "Delivery Readiness",
+              thought_leadership: "Thought Leadership",
+              ref_guide: "How To Use PGI", ref_scores: "Score Methodology",
             }[view] || view)}
           </span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>

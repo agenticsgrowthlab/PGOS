@@ -114,6 +114,9 @@ export function normalizeInitiative(row) {
     epics: row.epics || "",
     riskReg: row.risk_register || "",
     piPlanning: row.pi_planning || "",
+    prd:        row.prd          || "",
+    telemetry:  row.telemetry    || "",
+    testcases:  row.testcases    || "",
     handoffPackage: row.handoff_package || "",
     // Roadmap / timeline fields
     roadmap_start: row.roadmap_start || null,
@@ -181,6 +184,9 @@ export function denormalizeInitiative(ini) {
     epics: ini.epics ?? null,
     risk_register: ini.riskReg ?? null,
     pi_planning: ini.piPlanning ?? null,
+    prd:         ini.prd         ?? null,
+    telemetry:   ini.telemetry   ?? null,
+    testcases:   ini.testcases   ?? null,
     handoff_package: ini.handoffPackage ?? null,
     // NOTE: approved/approved_by/approved_date intentionally excluded —
     // managed exclusively by the direct write in InitiativeDetail.jsx

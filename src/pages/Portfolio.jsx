@@ -5,7 +5,7 @@ import { useApp } from "../contexts/AppContext";
 import { callAI } from "../lib/api";
 
 // ─── Portfolio ────────────────────────────────────────────────
-export function Portfolio() {
+export function Portfolio({ setView }) {
   const { initiatives, foundation, updateIni, roadmapLastSaved, saveRoadmapTimestamp } = useApp();
   const [aiSummary, setAiSummary] = useState("");
   const [loading, setLoading] = useState(false);
@@ -33,8 +33,8 @@ export function Portfolio() {
 
   return (
     <div>
-      <div style={css.h2}>Portfolio Review</div>
-      <div style={css.sub}>Stakeholder scoring, WSJF prioritization, and PI selection.</div>
+      <div style={css.h2}>Innovation Pipeline · Stage 3</div>
+      <div style={css.sub}>WSJF prioritization, approval, and PI selection across all initiatives.</div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <button style={css.btnOut} onClick={getSummary}>◆ AI Portfolio Analysis</button>
@@ -117,8 +117,8 @@ export function Portfolio() {
       )}
 
       <div style={{ ...css.card, background: T.ink3, padding: "10px 16px", marginBottom: 0, borderRadius: "10px 10px 0 0" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px", gap: 8, alignItems: "center" }}>
-          {["Initiative", "Business Value", "Time Criticality", "Risk Reduction", "Effort (Job Size)", "WSJF", "PIVOT"].map(h => (
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px 70px", gap: 8, alignItems: "center" }}>
+          {["Initiative", "Business Value", "Time Criticality", "Risk Reduction", "Effort (Job Size)", "WSJF", "PIVOT", "Approved"].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{h}</div>
           ))}
         </div>
@@ -138,9 +138,9 @@ export function Portfolio() {
         const wc = wsjfColor(wsjf);
         return (
           <div key={ini.id} style={{ ...css.card, marginBottom: 4, borderRadius: idx === sorted.length - 1 ? "0 0 10px 10px" : "0", borderTop: "none", padding: "14px 16px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px", gap: 8, alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.loud }}>{ini.title}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px 70px", gap: 8, alignItems: "center" }}>
+              <div style={{ cursor: setView ? "pointer" : "default" }} onClick={() => setView && setView("initiative_" + ini.id)}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.loud }}>{ini.title} {setView && <span style={{ color: T.muted, fontSize: 11 }}>→</span>}</div>
                 <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
                   <Tag label={stageLabel(ini.stage)} color={stageColor(ini.stage)} /> {ini.slug}
                 </div>
@@ -161,6 +161,20 @@ export function Portfolio() {
                 <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>PIVOT</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: tier.color }}>{pivot.toFixed(0)}</div>
                 <Tag label={tier.label} color={tier.color} bg={tier.bg} />
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>APPROVE</div>
+                <input type="checkbox" checked={!!ini.approved}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    const newStage = checked ? "approved" : (ini.stage === "approved" ? "review" : ini.stage);
+                    updateIni(ini.id, d => ({ ...d, approved: checked, stage: newStage,
+                      approved_by: checked ? (d.approved_by || "Portfolio Review") : d.approved_by,
+                      approved_date: checked ? (d.approved_date || new Date().toISOString().slice(0,10)) : d.approved_date,
+                    }));
+                  }}
+                  style={{ width: 20, height: 20, cursor: "pointer", accentColor: T.green }} />
+                {ini.approved && <div style={{ fontSize: 9, color: T.green, marginTop: 3 }}>✓ Approved</div>}
               </div>
             </div>
           </div>
@@ -450,12 +464,15 @@ export function PIPlanning() {
 // ─── Handoff ─────────────────────────────────────────────────
 const HANDOFF_SECTIONS = [
   { key: "overview",   label: "Initiative Overview",      icon: "⊞", aiKey: null },
+  { key: "prd",        label: "PRD",                      icon: "◧", aiKey: "prd" },
   { key: "personas",   label: "Customer Personas",        icon: "◉", aiKey: "personas" },
   { key: "journey",    label: "Customer Journey Map",     icon: "→", aiKey: "journeys" },
   { key: "jtbd",       label: "Jobs To Be Done",          icon: "◈", aiKey: "jtbd" },
   { key: "usecases",   label: "Use Cases",                icon: "◇", aiKey: "usecases" },
   { key: "epics",      label: "Epics & Stories",          icon: "⊕", aiKey: "epics" },
   { key: "risks",      label: "Risk Register (ROAM)",     icon: "△", aiKey: "risks" },
+  { key: "telemetry",  label: "Telemetry Readiness",      icon: "◑", aiKey: "telemetry" },
+  { key: "testcases",  label: "Test Cases",               icon: "◻", aiKey: "testcases" },
   { key: "pi",         label: "PI Planning & Estimates",  icon: "◎", aiKey: null },
   { key: "gonogo",     label: "Go/No-Go Checklist",       icon: "✓", aiKey: null },
 ];
@@ -641,6 +658,77 @@ function GoNoGo({ ini }) {
   );
 }
 
+// ─── Generic AI Section (reusable for telemetry, test cases, etc.) ──────
+function SimpleAISection({ ini, updateIni, foundation, field, aiKey, label, placeholder }) {
+  const [loading, setLoading] = useState(false);
+  const value = ini[field] || "";
+
+  const gen = async () => {
+    setLoading(true);
+    const text = await callAI(aiKey, { foundation, initiative: ini }).catch(() => "");
+    if (text) updateIni(ini.id, d => ({ ...d, [field]: text }));
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <button style={css.btnGold} onClick={gen} disabled={loading}>
+          {loading ? `Generating ${label}…` : value ? `◆ Regenerate ${label}` : `◆ Generate ${label}`}
+        </button>
+      </div>
+      {loading && <AIBox label={`◆ ${label} — Generating`} loading />}
+      {value && !loading ? (
+        <div style={{ background: T.ink2, borderRadius: 8, padding: 20, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>
+            {label} — {ini.title}
+          </div>
+          <TextSection text={value} placeholder="" />
+        </div>
+      ) : !loading && (
+        <div style={{ background: T.ink2, borderRadius: 8, padding: 16, color: T.muted, fontSize: 13, fontStyle: "italic" }}>
+          {placeholder}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PRD Section ──────────────────────────────────────────────
+function PRDSection({ ini, updateIni, foundation }) {
+  const [loading, setLoading] = useState(false);
+
+  const gen = async () => {
+    setLoading(true);
+    const text = await callAI("prd", { foundation, initiative: ini }).catch(() => "");
+    if (text) updateIni(ini.id, d => ({ ...d, prd: text }));
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <button style={css.btnGold} onClick={gen} disabled={loading}>
+          {loading ? "Generating PRD…" : ini.prd ? "◆ Regenerate PRD" : "◆ Generate PRD"}
+        </button>
+      </div>
+      {loading && <AIBox label="◆ Product Requirements Document — Generating" loading />}
+      {ini.prd && !loading ? (
+        <div style={{ background: T.ink2, borderRadius: 8, padding: 20, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>
+            Product Requirements Document — {ini.title}
+          </div>
+          <TextSection text={ini.prd} placeholder="" />
+        </div>
+      ) : !loading && (
+        <div style={{ background: T.ink2, borderRadius: 8, padding: 16, color: T.muted, fontSize: 13, fontStyle: "italic" }}>
+          No PRD generated yet. Click the button above to generate a full PRD including functional requirements, NFRs, acceptance criteria, and open questions.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PI Tab — inline generate for Handoff stage ───────────────
 function PITab({ ini, updateIni }) {
   const { initiatives, foundation } = useApp();
@@ -691,7 +779,7 @@ function PITab({ ini, updateIni }) {
   );
 }
 
-export function Handoff() {
+export function Handoff({ setView }) {
   const { initiatives, foundation, updateIni } = useApp();
   const [selected, setSelected]     = useState("");
   const [activeSection, setSection] = useState("overview");
@@ -781,6 +869,12 @@ export function Handoff() {
         return <RiskCards text={ini.riskReg} />;
       case "pi":
         return <PITab ini={ini} updateIni={updateIni} />;
+      case "prd":
+        return <PRDSection ini={ini} updateIni={updateIni} foundation={foundation} />;
+      case "telemetry":
+        return <SimpleAISection ini={ini} updateIni={updateIni} foundation={foundation} field="telemetry" aiKey="telemetry" label="Telemetry Readiness" placeholder="Define the events, metrics, and instrumentation required before this initiative ships. AI will generate a complete telemetry plan." />;
+      case "testcases":
+        return <SimpleAISection ini={ini} updateIni={updateIni} foundation={foundation} field="testcases" aiKey="testcases" label="Test Cases" placeholder="AI-generated test cases covering functional, edge, and regression scenarios based on epics and use cases." />;
       case "gonogo":
         return <GoNoGo ini={ini} />;
       default:
@@ -790,8 +884,8 @@ export function Handoff() {
 
   return (
     <div>
-      <div style={css.h2}>Stage 7 — Engineering Handoff</div>
-      <div style={css.sub}>Visual package for engineering, design, and QA leads. Export to PPT for the formal PI-ready document.</div>
+      <div style={css.h2}>Delivery Handoff · Stage 5</div>
+      <div style={css.sub}>PRD, telemetry plan, test cases, epics, risks, and PI planning. Export to PPT for the formal PI-ready document.</div>
 
       {/* Initiative selector */}
       <div style={{ ...css.card, marginBottom: 16, display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -888,6 +982,66 @@ const STAGE_META = {
 };
 
 // ─── Stage List View ──────────────────────────────────────────
+// ─── Sprint Goals · Stage 6 ────────────────────────────────────
+export function SprintGoals({ setView }) {
+  const { initiatives } = useApp();
+  const approved = initiatives.filter(i => i.approved || ["delivery","handoff","gtm","measure","outcome"].includes(i.stage));
+
+  return (
+    <div>
+      <div style={css.h2}>Sprint Goals · Stage 6</div>
+      <div style={css.sub}>User stories organized by sprint with editable dates. Drag stories between sprints to plan your increment.</div>
+      <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🚧</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.loud, marginBottom: 8 }}>Sprint Board — Coming Soon</div>
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          This will show user stories from your Epics in a movable kanban view,<br />
+          organized by sprint with editable start/end dates and capacity tracking.
+        </div>
+        <button style={{ ...css.btnOut, marginTop: 20 }} onClick={() => setView("handoff")}>← Back to Delivery Handoff</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Lessons Learned · Stage 11 ────────────────────────────────
+export function LessonsLearned({ setView }) {
+  const { initiatives } = useApp();
+  return (
+    <div>
+      <div style={css.h2}>Lessons Learned · Stage 11</div>
+      <div style={css.sub}>Capture what worked, what didn't, and what to carry forward. Feed insights back into the next initiative cycle.</div>
+      <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>📖</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.loud, marginBottom: 8 }}>Lessons Learned — Coming Soon</div>
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          After outcome review, capture retrospective insights: what worked,<br />
+          what didn't, what to do differently, and AI-suggested patterns across initiatives.
+        </div>
+        <button style={{ ...css.btnOut, marginTop: 20 }} onClick={() => setView("outcome")}>← Back to Outcome Summary</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Thought Leadership ─────────────────────────────────────────
+export function ThoughtLeadership() {
+  return (
+    <div>
+      <div style={css.h2}>Thought Leadership</div>
+      <div style={css.sub}>NCM Framework whitepapers, articles, and content library.</div>
+      <div style={{ ...css.card, textAlign: "center", padding: 40, color: T.muted }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>✍️</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.loud, marginBottom: 8 }}>Content Library — Coming Soon</div>
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          Whitepapers, case studies, and framework articles will live here.<br />
+          Content strategy and authoring tools to follow.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StageList({ stageFilter, title, setView }) {
   const { initiatives } = useApp();
 
