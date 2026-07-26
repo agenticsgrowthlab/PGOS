@@ -506,6 +506,24 @@ async function handleInitiatives(sql, action, payload) {
         `;
       } catch (e) { console.error('[roadmap]', e.message); }
 
+      // GTM fields
+      try {
+        await sql`
+          UPDATE initiatives SET
+            gtm_icp              = COALESCE(${str(r.gtm_icp)}::text,              gtm_icp),
+            gtm_positioning      = COALESCE(${str(r.gtm_positioning)}::text,      gtm_positioning),
+            gtm_value_prop       = COALESCE(${str(r.gtm_value_prop)}::text,       gtm_value_prop),
+            gtm_channel_strategy = COALESCE(${str(r.gtm_channel_strategy)}::text, gtm_channel_strategy),
+            gtm_launch_plan      = COALESCE(${str(r.gtm_launch_plan)}::text,      gtm_launch_plan),
+            gtm_success_criteria = COALESCE(${str(r.gtm_success_criteria)}::text, gtm_success_criteria),
+            gtm_campaign_intel   = COALESCE(${str(r.gtm_campaign_intel)}::text,   gtm_campaign_intel),
+            gtm_social_posts     = COALESCE(${str(r.gtm_social_posts)}::text,     gtm_social_posts),
+            gtm_calendar         = COALESCE(${str(r.gtm_calendar)}::text,         gtm_calendar),
+            gtm_notes            = COALESCE(${str(r.gtm_notes)}::text,            gtm_notes)
+          WHERE id = ${id}
+        `;
+      } catch (e) { console.error('[gtm]', e.message); }
+
       try {
         await sql`
           UPDATE initiatives SET

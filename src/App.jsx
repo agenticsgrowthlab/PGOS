@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppProvider, useApp } from "./contexts/AppContext";
+import { Sidebar } from "./components/layout/Sidebar";
 import InvestmentContract from "./pages/InvestmentContract";
 import { LoadingScreen, ErrorScreen } from "./components/ui";
 import { Dashboard } from "./pages/Dashboard";
@@ -8,9 +9,9 @@ import { Ideas, InitiativeDetail } from "./pages/InitiativeDetail";
 import { Portfolio, PIPlanning, Handoff, StageList, Chatty } from "./pages/Portfolio";
 import Measure from "./pages/Measure";
 import OutcomeSummary from "./pages/OutcomeSummary";
+import GTM from "./pages/GTM";
 import { RefFramework, RefGuide, ScoreMath } from "./pages/References";
 import { T, css, stageLabel, stageColor } from "./lib/tokens";
-import { Sidebar } from "./components/layout/Sidebar";
 
 // ─── PPT Download Button ─────────────────────────────────────
 function DownloadPPTBtn({ page, label, gold }) {
@@ -104,6 +105,7 @@ function Inner() {
     if (view === "investment_contract") return <InvestmentContract />;
     if (view === "delivery")     return <PIPlanning />;
     if (view === "handoff")      return <Handoff />;
+    if (view === "gtm")          return <GTM />;
     if (view === "measure")      return <Measure />;
     if (view === "outcome")      return <OutcomeSummary />;
     if (view === "ref_framework") return <RefFramework setView={setView} />;
@@ -140,9 +142,9 @@ function Inner() {
               dashboard: "Dashboard", foundation: "Foundation",
               ideas: "Ideas · Stage 1", discovery: "Discovery · Stage 2",
               execreview: "Executive Review · Stage 3", portfolio: "Portfolio · Stage 4",
-              definition: "Product Definition · Stage 5", investment_contract: "Investment Contract · Stage 5.5", delivery: "Delivery · Stage 6",
-              handoff: "Handoff · Stage 7", measure: "Measure · Stage 8",
-              outcome: "Outcome Summary · Stage 9", ref_framework: "NCM PM Framework",
+              definition: "Product Definition · Stage 5", investment_contract: "Delivery Readiness · Stage 5.5", delivery: "Delivery · Stage 6",
+              handoff: "Handoff · Stage 7", gtm: "Go-To-Market · Stage 8", measure: "Measure · Stage 9",
+              outcome: "Outcome Summary · Stage 10", ref_framework: "NCM PM Framework",
               ref_guide: "How To Use PGI",
               ref_scores: "Score Methodology",
             }[view] || view)}
