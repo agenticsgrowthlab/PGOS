@@ -384,21 +384,22 @@ Include: pre-launch prep, internal enablement, soft launch, campaign activations
 
     case "gtm_social": {
       const ini = payload.ini || {};
-      userContent = `You are a B2B content strategist. Write launch content for this initiative. Return ONLY a valid JSON object, no markdown fences.
+      userContent = `You are a B2B content strategist. Create a full 30-day launch content calendar for this initiative. Return ONLY a valid JSON object, no markdown fences.
 
 Initiative: ${ini.title}
 ICP: ${ini.gtm_icp || ""}
 Positioning: ${ini.gtm_positioning || ""}
 Value Props: ${(ini.gtm_value_prop || "").substring(0, 300)}
 Campaign Intel: ${(ini.gtm_campaign_intel || "").substring(0, 300)}
+Channel Strategy: ${(ini.gtm_channel_strategy || "").substring(0, 200)}
 
-Return a JSON object with exactly these keys:
+Return a JSON object with exactly these keys. Each channel gets a 30-DAY content plan:
 {
-  "LinkedIn": "Professional announcement (150-200 words). Lead with business problem, not features. Hook, 2-3 benefits, CTA.",
-  "Twitter/X": "3-4 tweet thread separated by \n\n. Punchy, specific, use metrics.",
-  "Email": "Launch email. First line: Subject: [subject line]. Then body 200-250 words. Problem-led, single CTA.",
-  "Blog": "Blog outline: headline then 4-5 section headers with one-sentence summaries.",
-  "Press Release": "150-word press release. Headline, dateline, lede, PM quote, boilerplate."
+  "LinkedIn": "30 posts numbered Day 1 through Day 30. Each post on its own line formatted as: Day N: [post content 50-80 words]. Mix problem awareness, social proof, feature spotlights, customer stories, tips, and CTAs. Vary tone.",
+  "Twitter/X": "30 tweets numbered Day 1 through Day 30. Each on its own line: Day N: [tweet under 280 chars]. Mix announcements, tips, questions, stats, and engagement hooks.",
+  "Email": "4 emails for weeks 1-4. Each formatted as: WEEK N — Subject: [subject] | Body: [150 word email body]. Week 1=announcement, Week 2=value deep dive, Week 3=social proof, Week 4=CTA/urgency.",
+  "Blog": "4 blog post outlines for weeks 1-4. Each: WEEK N — Title: [title] | Outline: [5 section headers with one-sentence summaries each].",
+  "Press Release": "One launch press release: Headline, dateline, lede paragraph (who/what/when/where/why), quote from PM, product details paragraph, company boilerplate."
 }`;
       break;
     }
@@ -426,7 +427,7 @@ const TOKEN_MAP = {
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
   risk_register: 900, pi_planning: 1200, handoff: 1500,
   portfolio_analysis: 700, chatty: 700,
-  gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,
+  gtm_full: 4000, gtm_calendar: 2000, gtm_social: 6000,
   investment_contract: 1200,
   bootstrap_company: 8000,
 };

@@ -133,7 +133,7 @@ function SocialPosts({ posts, onUpdate }) {
             value={(posts || {})[ch] || ""}
             onChange={v => updatePost(ch, v)}
             placeholder={`${ch} post or content...`}
-            rows={3}
+            rows={20}
           />
         </div>
       ))}
@@ -233,7 +233,24 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
       } else if (section === "calendar") {
         await saveCalendar(parsed);
       } else if (section === "social") {
-        await saveSocial(parsed);
+        // Append to existing content rather than overwrite
+        setSocialPosts(prev => {
+          const merged = {};
+          const CHANNELS = ["LinkedIn", "Twitter/X", "Email", "Blog", "Press Release"];
+          CHANNELS.forEach(ch => {
+            const existing = (prev[ch] || "").trim();
+            const incoming = (parsed[ch] || "").trim();
+            merged[ch] = existing
+              ? existing + "
+
+---
+
+" + incoming
+              : incoming;
+          });
+          saveSocial(merged);
+          return merged;
+        });
       }
     } catch (err) {
       console.error("GTM AI error:", err);
@@ -278,7 +295,7 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
           {loading.calendar ? "◆ Building Calendar..." : "◆ Generate Launch Calendar"}
         </button>
         <button style={css.btnOut} onClick={() => generate("social")} disabled={loading.social}>
-          {loading.social ? "◆ Writing Content..." : "◆ Generate Launch Content"}
+          {loading.social ? "◆ Writing 30-Day Content..." : socialPosts && Object.keys(socialPosts).length ? "◆ Append 30 More Days" : "◆ Generate 30-Day Content Calendar"}
         </button>
       </div>
 
@@ -369,7 +386,7 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
       </Section>
 
       {/* Social / Launch Content */}
-      <Section title="Launch Content">
+      <Section title="30-Day Launch Content Calendar (LinkedIn · Twitter/X · Email · Blog · Press Release)">
         <SocialPosts posts={socialPosts} onUpdate={saveSocial} />
       </Section>
 
