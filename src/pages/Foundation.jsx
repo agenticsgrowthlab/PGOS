@@ -398,23 +398,39 @@ export function Foundation() {
   } = useApp();
 
   const [tab, setTab] = useState("mission");
-  const [aiSuggest, setAiSuggest] = useState("");
   const [loadingAI, setLoadingAI] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   if (!foundation) return null;
   const f = foundation;
 
-  const [suggestCtx, setSuggestCtx] = useState(""); // which tab triggered suggest
+  // AI suggestions persist per-tab via localStorage (keyed by orgId)
+  const lsKey = (ctx) => `pgi_ai_suggest_${orgId}_${ctx}`;
+  const [suggests, setSuggests] = useState(() => {
+    const ctxs = ["okrs", "strategy", "capabilities", "products"];
+    const map = {};
+    ctxs.forEach(ctx => {
+      try { map[ctx] = localStorage.getItem(`pgi_ai_suggest_${orgId}_${ctx}`) || ""; } catch(e) { map[ctx] = ""; }
+    });
+    return map;
+  });
+
+  const setSuggest = (ctx, text) => {
+    setSuggests(m => ({ ...m, [ctx]: text }));
+    try { localStorage.setItem(lsKey(ctx), text); } catch(e) {}
+  };
+  const clearSuggest = (ctx) => setSuggest(ctx, "");
 
   const suggest = async (what, ctx) => {
     setLoadingAI(true);
-    setAiSuggest("");
-    setSuggestCtx(ctx || "");
+    setSuggest(ctx, "");
     const text = await callAI("suggest", { foundation: f, what }).catch(() => "");
-    setAiSuggest(text);
+    setSuggest(ctx, text);
     setLoadingAI(false);
   };
+
+  // Not needed anymore — kept for compat
+  const suggestCtx = null;
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -439,7 +455,7 @@ export function Foundation() {
 
       <div style={{ display: "flex", gap: 0, background: T.ink3, borderRadius: 8, padding: 3, marginBottom: 20, flexWrap: "wrap" }}>
         {TABS.map(([id, lbl]) => (
-          <button key={id} onClick={() => { setTab(id); setAiSuggest(""); }}
+          <button key={id} onClick={() => { setTab(id);  }}
             style={{ ...css.btnGhost, borderRadius: 6, border: "none", background: tab === id ? T.ink2 : "transparent", color: tab === id ? T.gold : T.muted, fontWeight: tab === id ? 700 : 400, margin: 2, fontSize: 12 }}>
             {lbl}
           </button>
@@ -533,10 +549,16 @@ export function Foundation() {
                 }}>+ Key Result</button>
             </div>
           ))}
-          {(aiSuggest || loadingAI) && suggestCtx === "okrs" && (
+          {(suggests["okrs"] || loadingAI) && (
             <AIBox label={`◆ AI OKR Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
-              {aiSuggest}
-              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+              {suggests["okrs"]}
+              {suggests["okrs"] && (
+                <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                  <button style={{ ...css.btnGhost, fontSize: 11 }} onClick={() => navigator.clipboard.writeText(suggests["okrs"])}>⎘ Copy</button>
+                  <button style={{ ...css.btnGold, fontSize: 11 }} onClick={() => { addOKR(); }}>+ Add OKR Row</button>
+                  <button style={{ ...css.btnGhost, fontSize: 11, color: T.muted }} onClick={() => clearSuggest("okrs")}>✕ Dismiss</button>
+                </div>
+              )}
             </AIBox>
           )}
         </div>
@@ -566,10 +588,16 @@ export function Foundation() {
                 onChange={e => { const ns = [...f.strategies]; ns[i] = { ...ns[i], description: e.target.value }; updateThemesLocal(ns); }} />
             </div>
           ))}
-          {(aiSuggest || loadingAI) && suggestCtx === "strategy" && (
+          {(suggests["strategy"] || loadingAI) && (
             <AIBox label={`◆ AI Strategic Theme Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
-              {aiSuggest}
-              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+              {suggests["strategy"]}
+              {suggests["strategy"] && (
+                <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                  <button style={{ ...css.btnGhost, fontSize: 11 }} onClick={() => navigator.clipboard.writeText(suggests["strategy"])}>⎘ Copy</button>
+                  <button style={{ ...css.btnGold, fontSize: 11 }} onClick={() => { addTheme(); }}>+ Add Theme Row</button>
+                  <button style={{ ...css.btnGhost, fontSize: 11, color: T.muted }} onClick={() => clearSuggest("strategy")}>✕ Dismiss</button>
+                </div>
+              )}
             </AIBox>
           )}
         </div>
@@ -597,10 +625,16 @@ export function Foundation() {
               </div>
             ))}
           </div>
-          {(aiSuggest || loadingAI) && suggestCtx === "capabilities" && (
+          {(suggests["capabilities"] || loadingAI) && (
             <AIBox label={`◆ AI Capability Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
-              {aiSuggest}
-              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+              {suggests["capabilities"]}
+              {suggests["capabilities"] && (
+                <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                  <button style={{ ...css.btnGhost, fontSize: 11 }} onClick={() => navigator.clipboard.writeText(suggests["capabilities"])}>⎘ Copy</button>
+                  <button style={{ ...css.btnGold, fontSize: 11 }} onClick={() => { addCapability(); }}>+ Add Capability Row</button>
+                  <button style={{ ...css.btnGhost, fontSize: 11, color: T.muted }} onClick={() => clearSuggest("capabilities")}>✕ Dismiss</button>
+                </div>
+              )}
             </AIBox>
           )}
         </div>
@@ -640,10 +674,16 @@ export function Foundation() {
               </div>
             ))}
           </div>
-          {(aiSuggest || loadingAI) && suggestCtx === "products" && (
+          {(suggests["products"] || loadingAI) && (
             <AIBox label={`◆ AI Product Suggestions — ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`} loading={loadingAI}>
-              {aiSuggest}
-              {aiSuggest && <button style={{ ...css.btnGhost, marginTop: 10, fontSize: 11 }} onClick={() => { navigator.clipboard.writeText(aiSuggest); }}>⎘ Copy to Clipboard</button>}
+              {suggests["products"]}
+              {suggests["products"] && (
+                <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                  <button style={{ ...css.btnGhost, fontSize: 11 }} onClick={() => navigator.clipboard.writeText(suggests["products"])}>⎘ Copy</button>
+                  <button style={{ ...css.btnGold, fontSize: 11 }} onClick={() => { addProduct(); }}>+ Add Product Row</button>
+                  <button style={{ ...css.btnGhost, fontSize: 11, color: T.muted }} onClick={() => clearSuggest("products")}>✕ Dismiss</button>
+                </div>
+              )}
             </AIBox>
           )}
         </div>
