@@ -241,11 +241,7 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
             const existing = (prev[ch] || "").trim();
             const incoming = (parsed[ch] || "").trim();
             merged[ch] = existing
-              ? existing + "
-
----
-
-" + incoming
+              ? existing + "\n\n---\n\n" + incoming
               : incoming;
           });
           saveSocial(merged);
