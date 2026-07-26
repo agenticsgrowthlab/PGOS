@@ -91,6 +91,74 @@ function buildMessages(action, payload) {
       userContent = `Initiative title: ${ini?.title || payload.title}\nProblem: ${ini?.problem || payload.problem}\n${orgCtx}\nAsk clarifying questions to sharpen this idea.`;
       break;
 
+    case "suggest_initiatives": {
+      const existing = (payload.initiatives || []).map(i => i.title).join(", ");
+      userContent = `You are a Chief Product Officer advising on portfolio strategy. Return ONLY valid JSON, no markdown fences.
+
+${orgCtx}
+Strategic Themes: ${(payload.foundation?.themes || []).map(t => t.name).join(", ")}
+Capabilities: ${(payload.foundation?.capabilities || []).map(c => c.name).join(", ")}
+Competitors: ${(payload.foundation?.competitors || []).map(c => c.name).join(", ")}
+Existing Initiatives: ${existing || "None yet"}
+
+Identify the 3 highest-leverage initiatives this company should consider that are NOT already in the pipeline.
+Use gaps in the strategy, competitive threats, unmet customer needs, and capability opportunities.
+
+Return a JSON array of exactly 3 objects:
+[
+  {
+    "title": "Initiative title (concise, action-oriented)",
+    "source": "Strategic Gap|Customer Need|Competitive Threat|Capability Opportunity",
+    "problem": "The specific problem this solves (2-3 sentences, specific and evidence-grounded)",
+    "opportunity": "What solving this unlocks — revenue, retention, market position, or risk reduction (2-3 sentences with estimates)",
+    "rationale": "Why NOW — what makes this urgent or high-leverage at this moment (1-2 sentences)"
+  }
+]`;
+      break;
+    }
+
+    case "populate_initiative": {
+      const idea = payload.idea || {};
+      userContent = `You are a Senior Product Manager. A PM has proposed the following initiative. Your job is to fully flesh it out using everything known about the company. Return ONLY valid JSON, no markdown fences.
+
+${orgCtx}
+Strategic Themes: ${(payload.foundation?.themes || []).map(t => t.name).join(", ")}
+Capabilities: ${(payload.foundation?.capabilities || []).map(c => c.name).join(", ")}
+Competitors: ${(payload.foundation?.competitors || []).map(c => c.name).join(", ")}
+
+PROPOSED INITIATIVE:
+Title: ${idea.title || ""}
+Initial Idea: ${idea.idea || ""}
+Problem (if provided): ${idea.problem || ""}
+
+Using all available context, generate a complete initiative package. Return exactly this JSON:
+{
+  "title": "Refined, action-oriented initiative title",
+  "problem": "Sharp problem statement (3-4 sentences). Who experiences it, how often, what it costs them. Specific and measurable.",
+  "opportunity": "Business opportunity (3-4 sentences). Revenue potential, retention impact, competitive positioning, or cost reduction. Include estimates.",
+  "evidence_interviews": "Estimated customer interviews needed or proxy evidence",
+  "evidence_pain_confirmed": "How pain can be confirmed — research approach",
+  "evidence_revenue_opp": "Revenue opportunity estimate with reasoning",
+  "evidence_cost_savings": "Cost savings estimate if applicable",
+  "evidence_competitive": "Competitive context — who else is solving this and how",
+  "evidence_nps": "Expected NPS or satisfaction impact",
+  "pivot_p": 7,
+  "pivot_i": 6,
+  "pivot_v": 8,
+  "pivot_o": 7,
+  "pivot_t": 5,
+  "exec_brief": "Executive investment brief (150-200 words). Problem, opportunity, strategic fit, recommended investment. Board-ready.",
+  "personas": "2-3 customer personas most affected. Each: name, role, company size, daily pain, what success looks like for them.",
+  "investment_requested": 500000,
+  "eng_teams": 3,
+  "eng_sprints": 6
+}
+
+For PIVOT scores (1-10): P=Problem severity, I=Investment readiness, V=Value potential, O=Organizational fit, T=Time criticality.
+For investment_requested: estimate in USD as a number.`;
+      break;
+    }
+
     case "pivot_coach":
       userContent = `${iniCtx}\nPIVOT Scores: P=${ini.pivot?.p} I=${ini.pivot?.i} V=${ini.pivot?.v} O=${ini.pivot?.o} T=${ini.pivot?.t}\nWeighted Score: ${payload.score?.toFixed(1)}\nCoach me on improving the weakest dimension.`;
       break;
@@ -499,8 +567,9 @@ const TOKEN_MAP = {
   suggest: 600, clarify: 500, pivot_coach: 300, eng_estimate: 400,
   exec_brief: 1200, one_pager: 600, personas: 1100, current_journey: 900,
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
-  risk_register: 900, pi_planning: 1200, handoff: 1500,
+  risk_register: 900, pi_planning: 1200, handoff: 4000,
   portfolio_analysis: 700, chatty: 700,
+  suggest_initiatives: 1500, populate_initiative: 3000,
   gtm_full: 4000, gtm_calendar: 2000, gtm_social: 3000,
   investment_contract: 1200,
   bootstrap_company: 8000,

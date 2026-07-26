@@ -436,15 +436,101 @@ export function InitiativeDetail({ ini, setView }) {
 
 // ─── Ideas (Stage 1 list + create) ───────────────────────────
 export function Ideas({ setView }) {
-  const { initiatives, foundation, addInitiative } = useApp();
+  const { initiatives, foundation, addInitiative, updateIni } = useApp();
   const [form, setForm] = useState({ title: "", source: "Executive Idea", sourceDetail: "", problem: "", opportunity: "" });
   const [aiQ, setAiQ] = useState(""); const [loadingQ, setLoadingQ] = useState(false);
+
+  // Wizard state
+  const [wizardMode, setWizardMode] = useState(null); // null | "suggest" | "populate"
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState(null);
+  const [userIdea, setUserIdea] = useState("");
+  const [populating, setPopulating] = useState(false);
+  const [populated, setPopulated] = useState(null); // the AI-populated fields
 
   const askAI = async () => {
     if (!form.title) return;
     setLoadingQ(true);
     const text = await callAI("clarify", { foundation, initiative: { title: form.title, problem: form.problem } }).catch(() => "");
     setAiQ(text); setLoadingQ(false);
+  };
+
+  // Mode 1: AI suggests initiatives
+  const getSuggestions = async () => {
+    setLoadingSuggest(true);
+    setSuggestions([]);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "suggest_initiatives",
+          payload: { foundation, initiatives },
+        }),
+      });
+      const data = await res.json();
+      const text = (data.text || "").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(text);
+      setSuggestions(parsed);
+    } catch(e) { console.error("suggest error", e); }
+    setLoadingSuggest(false);
+  };
+
+  // Mode 2: Populate from user idea OR selected suggestion
+  const populate = async (idea) => {
+    setPopulating(true);
+    setPopulated(null);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "populate_initiative",
+          payload: { foundation, idea },
+        }),
+      });
+      const data = await res.json();
+      const text = (data.text || "").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(text);
+      setPopulated(parsed);
+    } catch(e) { console.error("populate error", e); }
+    setPopulating(false);
+  };
+
+  // Create from populated data
+  const createFromPopulated = async () => {
+    if (!populated) return;
+    const ini = await addInitiative({
+      title: populated.title,
+      source: selectedSuggestion ? "AI Suggestion" : "PM Idea",
+      source_detail: selectedSuggestion ? "AI Portfolio Analysis" : userIdea,
+      problem: populated.problem,
+      opportunity: populated.opportunity,
+    });
+    if (ini) {
+      // Save all the rich fields
+      await updateInitiative({
+        id: ini.id,
+        evidence_interviews: populated.evidence_interviews,
+        evidence_pain_confirmed: populated.evidence_pain_confirmed,
+        evidence_revenue_opp: populated.evidence_revenue_opp,
+        evidence_cost_savings: populated.evidence_cost_savings,
+        evidence_competitive: populated.evidence_competitive,
+        evidence_nps: populated.evidence_nps,
+        pivot_p: populated.pivot_p,
+        pivot_i: populated.pivot_i,
+        pivot_v: populated.pivot_v,
+        pivot_o: populated.pivot_o,
+        pivot_t: populated.pivot_t,
+        exec_brief: populated.exec_brief,
+        personas: populated.personas,
+        investment_requested: populated.investment_requested,
+        eng_teams: populated.eng_teams,
+        eng_sprints: populated.eng_sprints,
+      });
+      setView("initiative_" + ini.id);
+    }
   };
 
   const create = async () => {
@@ -462,42 +548,225 @@ export function Ideas({ setView }) {
     return order.indexOf(a.stage) - order.indexOf(b.stage);
   });
 
+  const cardStyle = { background: T.ink2, border: `1px solid ${T.border}`, borderRadius: 8, padding: 20, marginBottom: 16 };
+  const PIVOT_LABELS = { pivot_p: "Problem", pivot_i: "Investment", pivot_v: "Value", pivot_o: "Org Fit", pivot_t: "Time Crit" };
+
   return (
     <div>
-      <div style={css.h2}>Capture an Idea</div>
-      <div style={css.sub}>Every great initiative starts here. AI will help you think it through.</div>
+      <div style={css.h2}>Ideas · Stage 1</div>
+      <div style={css.sub}>Capture a new initiative — manually or with AI doing the heavy lifting.</div>
 
-      <div style={css.card}>
-        <label style={css.label}>Initiative Title</label>
-        <input style={css.input} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Give this idea a working title" />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-        <div style={css.card}>
-          <label style={css.label}>Source</label>
-          <select style={{ ...css.input, cursor: "pointer" }} value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}>
-            {SOURCES.map(s => <option key={s}>{s}</option>)}
-          </select>
+      {/* ── Mode selector ── */}
+      {!wizardMode && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 24 }}>
+          <div onClick={() => setWizardMode("manual")} style={{ ...cardStyle, cursor: "pointer", border: `1px solid ${T.border}`, textAlign: "center", padding: 24 }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>✏️</div>
+            <div style={{ fontWeight: 700, color: T.loud, marginBottom: 4 }}>Manual Entry</div>
+            <div style={{ fontSize: 12, color: T.muted }}>I have a clear idea — let me fill in the details</div>
+          </div>
+          <div onClick={() => { setWizardMode("populate"); }} style={{ ...cardStyle, cursor: "pointer", border: `1px solid ${T.gold}40`, textAlign: "center", padding: 24 }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>◆</div>
+            <div style={{ fontWeight: 700, color: T.gold, marginBottom: 4 }}>I Have an Idea</div>
+            <div style={{ fontSize: 12, color: T.muted }}>Describe it in one sentence — AI does the rest</div>
+          </div>
+          <div onClick={() => { setWizardMode("suggest"); getSuggestions(); }} style={{ ...cardStyle, cursor: "pointer", border: `1px solid ${T.gold}40`, textAlign: "center", padding: 24 }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>🧠</div>
+            <div style={{ fontWeight: 700, color: T.gold, marginBottom: 4 }}>AI Suggest</div>
+            <div style={{ fontSize: 12, color: T.muted }}>What should we build next? AI analyzes the portfolio</div>
+          </div>
         </div>
-        <div style={css.card}>
-          <label style={css.label}>Source Detail</label>
-          <input style={css.input} value={form.sourceDetail} onChange={e => setForm(f => ({ ...f, sourceDetail: e.target.value }))} placeholder="e.g. Q4 executive kick-off, ticket #4421…" />
-        </div>
-      </div>
-      <div style={css.card}>
-        <label style={css.label}>Business Problem</label>
-        <textarea rows={3} style={css.ta} value={form.problem} onChange={e => setForm(f => ({ ...f, problem: e.target.value }))} placeholder="What problem are we solving? Who experiences it?" />
-      </div>
-      <div style={css.card}>
-        <label style={css.label}>Opportunity</label>
-        <textarea rows={3} style={css.ta} value={form.opportunity} onChange={e => setForm(f => ({ ...f, opportunity: e.target.value }))} placeholder="What does solving this unlock?" />
-        <button style={{ ...css.btnOut, marginTop: 10 }} onClick={askAI} disabled={!form.title}>◆ AI — Ask Me Questions</button>
-        {(aiQ || loadingQ) && <AIBox label="◆ Product Intelligence — Clarifying Questions" loading={loadingQ}>{aiQ}</AIBox>}
-      </div>
+      )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-        <div style={{ fontSize: 13, color: T.muted }}>Initiatives in pipeline: {ideas.length}</div>
-        <button style={css.btnGold} onClick={create} disabled={!form.title.trim()}>Create Initiative →</button>
-      </div>
+      {/* ── Manual mode ── */}
+      {wizardMode === "manual" && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>Manual Entry</div>
+            <button style={css.btnGhost} onClick={() => setWizardMode(null)}>← Back</button>
+          </div>
+          <div style={cardStyle}>
+            <label style={css.label}>Initiative Title</label>
+            <input style={css.input} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Give this idea a working title" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div style={cardStyle}>
+              <label style={css.label}>Source</label>
+              <select style={{ ...css.input, cursor: "pointer" }} value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}>
+                {SOURCES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={cardStyle}>
+              <label style={css.label}>Source Detail</label>
+              <input style={css.input} value={form.sourceDetail} onChange={e => setForm(f => ({ ...f, sourceDetail: e.target.value }))} placeholder="e.g. Q4 kick-off, ticket #4421…" />
+            </div>
+          </div>
+          <div style={cardStyle}>
+            <label style={css.label}>Business Problem</label>
+            <textarea rows={3} style={css.ta} value={form.problem} onChange={e => setForm(f => ({ ...f, problem: e.target.value }))} placeholder="What problem are we solving? Who experiences it?" />
+          </div>
+          <div style={cardStyle}>
+            <label style={css.label}>Opportunity</label>
+            <textarea rows={3} style={css.ta} value={form.opportunity} onChange={e => setForm(f => ({ ...f, opportunity: e.target.value }))} placeholder="What does solving this unlock?" />
+            <button style={{ ...css.btnOut, marginTop: 10 }} onClick={askAI} disabled={!form.title}>◆ AI — Ask Me Questions</button>
+            {(aiQ || loadingQ) && <AIBox label="◆ Product Intelligence — Clarifying Questions" loading={loadingQ}>{aiQ}</AIBox>}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+            <button style={css.btnGold} onClick={create} disabled={!form.title.trim()}>Create Initiative →</button>
+          </div>
+        </>
+      )}
+
+      {/* ── I Have an Idea mode ── */}
+      {wizardMode === "populate" && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>◆ I Have an Idea — AI Will Do the Rest</div>
+            <button style={css.btnGhost} onClick={() => { setWizardMode(null); setPopulated(null); setUserIdea(""); }}>← Back</button>
+          </div>
+          {!populated && (
+            <div style={cardStyle}>
+              <label style={css.label}>Describe your idea in one or two sentences</label>
+              <textarea rows={4} style={css.ta} value={userIdea} onChange={e => setUserIdea(e.target.value)}
+                placeholder="e.g. I want to build a self-serve onboarding flow so new customers can get value without talking to sales..." />
+              <button style={{ ...css.btnGold, marginTop: 12 }} onClick={() => populate({ title: userIdea.slice(0, 80), idea: userIdea })} disabled={!userIdea.trim() || populating}>
+                {populating ? "◆ AI is building your initiative..." : "◆ Build Full Initiative →"}
+              </button>
+            </div>
+          )}
+          {populated && !populating && (
+            <>
+              <div style={{ ...cardStyle, border: `1px solid ${T.gold}40`, background: "#0D1726" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>◆ AI-Generated Initiative Package</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: T.loud, marginBottom: 16 }}>{populated.title}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>PROBLEM</div>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{populated.problem}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>OPPORTUNITY</div>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{populated.opportunity}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                  {Object.entries(PIVOT_LABELS).map(([k, label]) => (
+                    <div key={k} style={{ background: T.ink2, borderRadius: 6, padding: "6px 12px", textAlign: "center" }}>
+                      <div style={{ fontSize: 10, color: T.muted }}>{label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: T.gold }}>{populated[k]}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>EXEC BRIEF</div>
+                <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6, marginBottom: 12 }}>{populated.exec_brief}</div>
+                <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>EVIDENCE FRAMING</div>
+                <div style={{ fontSize: 12, color: T.loud, lineHeight: 1.6 }}>
+                  Revenue opp: {populated.evidence_revenue_opp} · Competitive: {populated.evidence_competitive}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button style={css.btnGhost} onClick={() => { setPopulated(null); }}>↺ Regenerate</button>
+                <button style={css.btnGold} onClick={createFromPopulated}>Create Initiative with All Fields →</button>
+              </div>
+            </>
+          )}
+          {populating && <div style={{ ...cardStyle, border: `1px solid ${T.gold}40`, textAlign: "center", padding: 40 }}>
+            <div style={{ color: T.gold, fontWeight: 700, marginBottom: 8 }}>◆ Building your initiative...</div>
+            <div style={{ color: T.muted, fontSize: 12 }}>AI is generating problem statement, opportunity, evidence framing, PIVOT scores, exec brief, and personas</div>
+          </div>}
+        </>
+      )}
+
+      {/* ── AI Suggest mode ── */}
+      {wizardMode === "suggest" && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>🧠 AI Portfolio Analysis — What Should We Build Next?</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={css.btnGhost} onClick={() => { getSuggestions(); }} disabled={loadingSuggest}>↺ Refresh</button>
+              <button style={css.btnGhost} onClick={() => { setWizardMode(null); setSuggestions([]); setPopulated(null); setSelectedSuggestion(null); }}>← Back</button>
+            </div>
+          </div>
+
+          {loadingSuggest && <div style={{ ...cardStyle, border: `1px solid ${T.gold}40`, textAlign: "center", padding: 40 }}>
+            <div style={{ color: T.gold, fontWeight: 700 }}>◆ Analyzing portfolio gaps...</div>
+            <div style={{ color: T.muted, fontSize: 12, marginTop: 8 }}>Reviewing strategy, competitors, existing pipeline, and capability gaps</div>
+          </div>}
+
+          {!loadingSuggest && suggestions.length > 0 && !selectedSuggestion && !populated && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {suggestions.map((s, i) => (
+                <div key={i} style={{ ...cardStyle, border: `1px solid ${T.gold}40`, cursor: "pointer" }}
+                  onClick={() => setSelectedSuggestion(s)}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                        {["🥇 Priority 1", "🥈 Priority 2", "🥉 Priority 3"][i]} · {s.source}
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: T.loud, marginBottom: 8 }}>{s.title}</div>
+                      <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6, marginBottom: 8 }}>{s.problem}</div>
+                      <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{s.rationale}</div>
+                    </div>
+                    <div style={{ marginLeft: 16, color: T.gold, fontSize: 18 }}>→</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedSuggestion && !populated && !populating && (
+            <div style={cardStyle}>
+              <div style={{ fontSize: 12, color: T.gold, fontWeight: 700, marginBottom: 8 }}>Selected: {selectedSuggestion.title}</div>
+              <div style={{ fontSize: 13, color: T.muted, marginBottom: 16 }}>AI will now fully populate this initiative with problem statement, evidence, PIVOT scores, exec brief, personas, and investment estimate.</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button style={css.btnGhost} onClick={() => setSelectedSuggestion(null)}>← Choose Different</button>
+                <button style={css.btnGold} onClick={() => populate(selectedSuggestion)}>◆ Build Full Initiative →</button>
+              </div>
+            </div>
+          )}
+
+          {populating && <div style={{ ...cardStyle, border: `1px solid ${T.gold}40`, textAlign: "center", padding: 40 }}>
+            <div style={{ color: T.gold, fontWeight: 700, marginBottom: 8 }}>◆ Building full initiative package...</div>
+            <div style={{ color: T.muted, fontSize: 12 }}>Generating problem, opportunity, evidence, PIVOT scores, exec brief, personas</div>
+          </div>}
+
+          {populated && !populating && (
+            <>
+              <div style={{ ...cardStyle, border: `1px solid ${T.gold}40`, background: "#0D1726" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>◆ AI-Generated Initiative Package</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: T.loud, marginBottom: 16 }}>{populated.title}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>PROBLEM</div>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{populated.problem}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>OPPORTUNITY</div>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{populated.opportunity}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                  {Object.entries(PIVOT_LABELS).map(([k, label]) => (
+                    <div key={k} style={{ background: T.ink2, borderRadius: 6, padding: "6px 12px", textAlign: "center" }}>
+                      <div style={{ fontSize: 10, color: T.muted }}>{label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: T.gold }}>{populated[k]}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>EXEC BRIEF</div>
+                <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6, marginBottom: 12 }}>{populated.exec_brief}</div>
+                <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>EVIDENCE FRAMING</div>
+                <div style={{ fontSize: 12, color: T.loud, lineHeight: 1.6 }}>
+                  Revenue opp: {populated.evidence_revenue_opp} · Competitive: {populated.evidence_competitive}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button style={css.btnGhost} onClick={() => { setPopulated(null); setSelectedSuggestion(null); }}>↺ Regenerate</button>
+                <button style={css.btnGold} onClick={createFromPopulated}>Create Initiative with All Fields →</button>
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       {ideas.length > 0 && (
         <div style={{ ...css.card, marginTop: 20 }}>
