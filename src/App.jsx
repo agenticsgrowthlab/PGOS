@@ -1,449 +1,199 @@
-import { useState, useCallback, useEffect } from "react";
-import { useApp } from "../contexts/AppContext";
-import { updateInitiative } from "../lib/api";
-import { css, T } from "../lib/tokens";
+import { useState } from "react";
+import { AppProvider, useApp } from "./contexts/AppContext";
+import { Sidebar } from "./components/layout/Sidebar";
+import InvestmentContract from "./pages/InvestmentContract";
+import { LoadingScreen, ErrorScreen } from "./components/ui";
+import { Dashboard } from "./pages/Dashboard";
+import { Foundation } from "./pages/Foundation";
+import { Ideas, InitiativeDetail } from "./pages/InitiativeDetail";
+import { Portfolio, PIPlanning, Handoff, StageList, Chatty, SprintGoals, LessonsLearned, ThoughtLeadership } from "./pages/Portfolio";
+import Measure from "./pages/Measure";
+import OutcomeSummary from "./pages/OutcomeSummary";
+import GTM from "./pages/GTM";
+import CampaignLaunch from "./pages/CampaignLaunch";
+import { RefFramework, RefGuide, ScoreMath } from "./pages/References";
+import { T, css, stageLabel, stageColor } from "./lib/tokens";
 
-const AIBox = ({ label, loading, children }) => (
-  <div style={{ background: T.ink2, border: `1px solid ${T.gold}`, borderRadius: 8, padding: 20, marginBottom: 16 }}>
-    <div style={{ color: T.gold, fontWeight: 700, fontSize: 12, marginBottom: loading ? 0 : 12 }}>{label}</div>
-    {loading ? (
-      <div style={{ color: T.muted, fontSize: 12, marginTop: 8 }}>◆ Generating...</div>
-    ) : children}
-  </div>
-);
+// ─── PPT Download Button ─────────────────────────────────────
+function DownloadPPTBtn({ page, label, gold }) {
+  const [loading, setLoading] = useState(false);
 
-const Section = ({ title, children }) => (
-  <div style={{ marginBottom: 28 }}>
-    <div style={{ fontSize: 11, fontWeight: 800, color: T.muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>{title}</div>
-    {children}
-  </div>
-);
-
-const TextArea = ({ value, onChange, placeholder, rows = 4 }) => (
-  <textarea
-    style={{ ...css.input, width: "100%", resize: "vertical", minHeight: rows * 22 }}
-    value={value || ""}
-    onChange={e => onChange(e.target.value)}
-    placeholder={placeholder}
-  />
-);
-
-// ── Calendar Component ────────────────────────────────────────
-function LaunchCalendar({ tasks, onUpdate }) {
-  const [newTask, setNewTask] = useState({ date: "", title: "", owner: "", type: "task" });
-  const [showAdd, setShowAdd] = useState(false);
-
-  const TYPES = {
-    task: { label: "Task", color: T.blue },
-    campaign: { label: "Campaign", color: T.gold },
-    milestone: { label: "Milestone", color: "#22c55e" },
-    event: { label: "Event", color: "#a855f7" },
+  // Map view names to ppt page keys
+  const PAGE_KEY_MAP = {
+    dashboard: "dashboard", foundation: "foundation",
+    ideas: "ideas", discovery: "discovery", execreview: "execreview",
+    portfolio: "portfolio", definition: "definition",
+    investment_contract: "investment_contract",
+    roadmap: "roadmap", delivery: "delivery", handoff: "handoff",
+    sprint_goals: "sprint_goals",
+    gtm: "gtm", campaign_launch: "campaign_launch",
+    measure: "measure", measure_data: "measure_data",
+    outcome: "outcome", lessons: null,
+    ref_framework: null, ref_guide: null, chatty_note: null,
+    thought_leadership: null, ncm_framework: null,
+    leadership: "leadership",
   };
 
-  const sorted = [...(tasks || [])].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  function addTask() {
-    if (!newTask.date || !newTask.title) return;
-    const updated = [...(tasks || []), { ...newTask, id: Date.now().toString() }];
-    onUpdate(updated);
-    setNewTask({ date: "", title: "", owner: "", type: "task" });
-    setShowAdd(false);
-  }
-
-  function removeTask(id) {
-    onUpdate((tasks || []).filter(t => t.id !== id));
-  }
-
-  // Group by month
-  const byMonth = {};
-  sorted.forEach(t => {
-    const m = t.date.slice(0, 7);
-    if (!byMonth[m]) byMonth[m] = [];
-    byMonth[m].push(t);
-  });
-
-  return (
-    <div>
-      {Object.entries(byMonth).map(([month, items]) => (
-        <div key={month} style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: T.muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>
-            {new Date(month + "-02").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-          </div>
-          {items.map(t => (
-            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: T.ink2, borderRadius: 6, marginBottom: 6, borderLeft: `3px solid ${TYPES[t.type]?.color || T.blue}` }}>
-              <div style={{ fontSize: 11, color: T.muted, minWidth: 60 }}>
-                {new Date(t.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.loud }}>{t.title}</div>
-                {t.owner && <div style={{ fontSize: 11, color: T.muted }}>{t.owner}</div>}
-              </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: TYPES[t.type]?.color || T.blue, background: T.ink, padding: "2px 6px", borderRadius: 4 }}>
-                {TYPES[t.type]?.label || t.type}
-              </div>
-              <button onClick={() => removeTask(t.id)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 14, padding: "0 4px" }}>×</button>
-            </div>
-          ))}
-        </div>
-      ))}
-
-      {tasks?.length === 0 || !tasks ? (
-        <div style={{ color: T.muted, fontSize: 12, fontStyle: "italic", padding: "12px 0" }}>
-          No tasks yet — use AI to generate a launch calendar or add manually.
-        </div>
-      ) : null}
-
-      {showAdd ? (
-        <div style={{ background: T.ink2, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16, marginTop: 12 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <input type="date" style={css.input} value={newTask.date} onChange={e => setNewTask(p => ({ ...p, date: e.target.value }))} />
-            <input style={css.input} placeholder="Task title" value={newTask.title} onChange={e => setNewTask(p => ({ ...p, title: e.target.value }))} />
-            <input style={css.input} placeholder="Owner" value={newTask.owner} onChange={e => setNewTask(p => ({ ...p, owner: e.target.value }))} />
-            <select style={css.input} value={newTask.type} onChange={e => setNewTask(p => ({ ...p, type: e.target.value }))}>
-              {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button style={css.btnPrimary} onClick={addTask}>Add</button>
-            <button style={css.btnGhost} onClick={() => setShowAdd(false)}>Cancel</button>
-          </div>
-        </div>
-      ) : (
-        <button style={{ ...css.btnGhost, marginTop: 8 }} onClick={() => setShowAdd(true)}>+ Add Task</button>
-      )}
-    </div>
-  );
-}
-
-// ── Social Posts Component ────────────────────────────────────
-function SocialPosts({ posts, onUpdate, loading, onGenerate }) {
-  const CHANNELS = ["LinkedIn", "Twitter/X", "Email", "Blog", "Press Release"];
-
-  function updatePost(channel, value) {
-    const updated = { ...(posts || {}), [channel]: value };
-    onUpdate(updated);
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {CHANNELS.map(ch => {
-        const hasContent = !!(posts || {})[ch];
-        const isLoading = loading[`social_${ch}`];
-        return (
-          <div key={ch}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>{ch}</div>
-              <button
-                onClick={() => onGenerate(ch)}
-                disabled={isLoading}
-                style={{ fontSize: 10, fontWeight: 700, color: T.gold, background: "transparent", border: `1px solid ${T.gold}`, borderRadius: 4, padding: "2px 8px", cursor: "pointer", opacity: isLoading ? 0.5 : 1 }}>
-                {isLoading ? "◆ Writing..." : hasContent ? "◆ Append 30 More" : "◆ Generate 30 Days"}
-              </button>
-              {hasContent && !isLoading && (
-                <button onClick={() => navigator.clipboard.writeText((posts || {})[ch] || "")}
-                  style={{ fontSize: 10, color: T.muted, background: "transparent", border: `1px solid #2A3A5C`, borderRadius: 4, padding: "2px 8px", cursor: "pointer" }}>
-                  Copy
-                </button>
-              )}
-            </div>
-            <TextArea
-              value={(posts || {})[ch] || ""}
-              onChange={v => updatePost(ch, v)}
-              placeholder={`Click "Generate 30 Days" to create ${ch} content...`}
-              rows={20}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Main GTM Page ─────────────────────────────────────────────
-export default function GTM() {
-  const { initiatives, updateIni } = useApp();
-  const ini = initiatives?.find(i =>
-    ["handoff", "gtm", "measure", "closed"].includes(i.stage)
-  ) || initiatives?.[0];
-
-  const [loading, setLoading] = useState({});
-  const [saved, setSaved] = useState(false);
-  const [calTasks, setCalTasks] = useState([]);
-  const [socialPosts, setSocialPosts] = useState({});
-
-  // Parse stored calendar and social posts from ini
-  useEffect(() => {
-    if (!ini) return;
-    try { setCalTasks(JSON.parse(ini.gtm_calendar || "[]")); } catch { setCalTasks([]); }
-    try { setSocialPosts(JSON.parse(ini.gtm_social_posts || "{}")); } catch { setSocialPosts({}); }
-  }, [ini?.id]);
-
-  const save = useCallback(async (fields) => {
-    if (!ini) return;
-    updateIni(ini.id, fields);
-    try { await updateInitiative({ id: ini.id, ...fields }); setSaved(true); setTimeout(() => setSaved(false), 2000); }
-    catch (err) { console.error("GTM save error:", err); }
-  }, [ini, updateIni]);
-
-  const saveCalendar = useCallback(async (tasks) => {
-    setCalTasks(tasks);
-    await save({ gtm_calendar: JSON.stringify(tasks) });
-  }, [save]);
-
-  const saveSocial = useCallback(async (posts) => {
-    setSocialPosts(posts);
-    await save({ gtm_social_posts: JSON.stringify(posts) });
-  }, [save]);
-
-  // ── Per-channel content generation ───────────────────────────
-  async function generateChannel(channel) {
-    if (!ini) return;
-    setLoading(p => ({ ...p, [`social_${channel}`]: true }));
+  async function download() {
+    const pageKey = PAGE_KEY_MAP[page] ?? (page.startsWith("initiative_") ? null : page);
+    if (!pageKey) return; // no PPT for this view
+    setLoading(true);
     try {
-      const res = await fetch("/api/ai", {
+      const res = await fetch("/api/ppt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "gtm_social", payload: { ini, channel } }),
+        body: JSON.stringify({ page: pageKey }),
       });
-      const data = await res.json();
-      const text = (data.text || "").trim();
-      if (!text) throw new Error(data.error || "Empty response");
-      setSocialPosts(prev => {
-        const existing = (prev[channel] || "").trim();
-        const merged = { ...prev, [channel]: existing ? existing + "\n\n---\n\n" + text : text };
-        saveSocial(merged);
-        return merged;
-      });
-    } catch(err) { console.error("GTM channel error:", channel, err); }
-    setLoading(p => ({ ...p, [`social_${channel}`]: false }));
-  }
-
-  // ── AI Generation ─────────────────────────────────────────---
-  async function generate(section) {
-    if (!ini) return;
-    setLoading(p => ({ ...p, [section]: true }));
-
-    const context = `
-Initiative: ${ini.title}
-Stage: ${ini.stage}
-Problem: ${ini.problem || ""}
-Opportunity: ${ini.opportunity || ""}
-Personas: ${ini.personas || ""}
-Exec Brief: ${ini.execBrief || ini.exec_brief || ""}
-PIVOT Score: P=${ini.pivot_p} I=${ini.pivot_i} V=${ini.pivot_v} O=${ini.pivot_o} T=${ini.pivot_t}
-Investment: $${(ini.investment_approved || ini.investment_requested || 0).toLocaleString()}
-Current Journey: ${ini.currentJourney || ini.current_journey || ""}
-Use Cases: ${ini.use_cases || ""}
-Epics: ${ini.epics || ""}
-Contract Metric: ${ini.contract_primary_metric || ""}, Target: ${ini.contract_target || ""}
-Economic Outcome: ${ini.contract_economic_outcome || ""}
-ICP: ${ini.gtm_icp || ""}
-Positioning: ${ini.gtm_positioning || ""}
-Value Prop: ${ini.gtm_value_prop || ""}
-Channel Strategy: ${ini.gtm_channel_strategy || ""}
-`.trim();
-
-    const actionMap = { full: "gtm_full", calendar: "gtm_calendar", social: "gtm_social" };
-
-    try {
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: actionMap[section],
-          payload: { ini, foundation: {} },
-        }),
-      });
-      const data = await res.json();
-      // ai.js returns { text } for standard actions
-      const text = data.text || "";
-      if (!text) throw new Error(data.error || "Empty response from AI");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-
-      if (section === "full") {
-        await save({
-          gtm_icp: parsed.icp,
-          gtm_positioning: parsed.positioning,
-          gtm_value_prop: parsed.value_prop,
-          gtm_channel_strategy: parsed.channel_strategy,
-          gtm_launch_plan: parsed.launch_plan,
-          gtm_success_criteria: parsed.success_criteria,
-          gtm_campaign_intel: parsed.campaign_intel,
-        });
-      } else if (section === "calendar") {
-        await saveCalendar(parsed);
-      }
-      // social is handled separately via generateChannel()
+      if (!res.ok) { console.error("PPT error", await res.text()); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PGI_${pageKey}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("GTM AI error:", err);
+      console.error("PPT download error", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(p => ({ ...p, [section]: false }));
   }
 
-  if (!ini) return <div style={{ color: T.muted, padding: 40, textAlign: "center" }}>No initiative in GTM stage. Move an initiative to Handoff or GTM stage to begin.</div>;
+  const noExport = ["ref_framework", "ref_guide", "chatty_note"].includes(page) || page.startsWith("initiative_");
+  if (noExport && !gold) return null;
 
   return (
-    <div>
-      <div style={css.h2}>GTM Strategy · Stage 7</div>
-      <div style={css.sub}>Positioning, ICP, channel strategy, and campaign intelligence — the strategic foundation for launch.</div>
+    <button
+      onClick={download}
+      disabled={loading}
+      style={{
+        fontSize: 11, padding: "5px 12px", borderRadius: 6,
+        background: gold ? T.gold : "transparent",
+        border: `1px solid ${gold ? T.gold : T.border}`,
+        color: gold ? T.ink : T.muted,
+        cursor: loading ? "default" : "pointer",
+        fontWeight: gold ? 700 : 400,
+        opacity: loading ? 0.6 : 1,
+        whiteSpace: "nowrap",
+      }}>
+      {loading ? "Generating…" : label}
+    </button>
+  );
+}
 
-      {/* Initiative context bar */}
-      <div style={{ background: T.ink2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 16px", marginBottom: 24, display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Initiative</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>{ini.title}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Target Metric</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{ini.contract_primary_metric || "—"}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Roadmap Start</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.steel }}>
-            {ini.roadmap_start ? new Date(ini.roadmap_start + "T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Roadmap End</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.steel }}>
-            {ini.roadmap_end ? new Date(ini.roadmap_end + "T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Investment</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>${((ini.investment_approved || ini.investment_requested || 0)).toLocaleString()}</div>
-        </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {ini.roadmap_end && (
-            <button
-              style={{ ...css.btnOut, fontSize: 11 }}
-              title="Pre-populate launch calendar with milestones based on roadmap dates"
-              onClick={() => {
-                if (!ini.roadmap_start || !ini.roadmap_end) return;
-                const start = new Date(ini.roadmap_start + "T00:00:00");
-                const end   = new Date(ini.roadmap_end   + "T00:00:00");
-                const fmt = d => d.toISOString().slice(0,10);
-                const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
-                const mid = new Date((start.getTime()+end.getTime())/2);
-                const syncedTasks = [
-                  { id: "sync-1", type:"milestone", title:"Development Complete", date: fmt(addDays(end,-14)), owner:"Engineering" },
-                  { id: "sync-2", type:"milestone", title:"Beta / UAT Launch",    date: fmt(addDays(end,-7)),  owner:"QA" },
-                  { id: "sync-3", type:"campaign",  title:"GTM Campaign Kick-off",date: fmt(addDays(end,-21)), owner:"Marketing" },
-                  { id: "sync-4", type:"event",     title:"General Availability", date: fmt(end),              owner:"Product" },
-                  { id: "sync-5", type:"task",      title:"Press Release",        date: fmt(addDays(end,-2)),  owner:"Marketing" },
-                  { id: "sync-6", type:"task",      title:"Sales Enablement",     date: fmt(mid),              owner:"Sales" },
-                ];
-                const merged = [...(calTasks||[]).filter(t => !t.id?.startsWith("sync-")), ...syncedTasks];
-                saveCalendar(merged);
-              }}
-            >
-              ↺ Sync Dates from Roadmap
-            </button>
+// ─── Inner App (has context access) ─────────────────────────
+function Inner() {
+  const { loading, error, initiatives } = useApp();
+  const [view, setView] = useState("dashboard");
+
+  if (loading) return <LoadingScreen />;
+  if (error)   return <ErrorScreen message={error} />;
+
+  const activeIni = view.startsWith("initiative_")
+    ? initiatives.find(i => i.id === view.replace("initiative_", ""))
+    : null;
+
+  // Stage list mappings
+  const STAGE_VIEWS = {};
+
+  const getContent = () => {
+    if (view === "dashboard")         return <Dashboard setView={setView} />;
+    if (view === "ncm_framework")     return <RefFramework setView={setView} />;
+    if (view === "foundation")        return <Foundation />;
+    if (view === "ideas")             return <Ideas setView={setView} />;
+    if (view === "discovery")         return <StageList stageFilter="discovery" title="Product Discovery · Stage 2" setView={setView} />;
+    if (view === "portfolio")         return <Portfolio setView={setView} />;
+    if (view === "roadmap")           return <PIPlanning />;
+    if (view === "investment_contract") return <InvestmentContract />;
+    if (view === "handoff")           return <Handoff />;
+    if (view === "sprint_goals")      return <SprintGoals setView={setView} />;
+    if (view === "gtm")               return <GTM />;
+    if (view === "campaign_launch")   return <CampaignLaunch />;
+    if (view === "measure")           return <Measure />;
+    if (view === "measure_data")      return <Measure />;
+    if (view === "outcome")           return <OutcomeSummary />;
+    if (view === "lessons")           return <LessonsLearned setView={setView} />;
+    if (view === "thought_leadership") return <ThoughtLeadership />;
+    if (view === "ref_framework")     return <RefFramework setView={setView} />;
+    if (view === "ref_framework") return <RefFramework setView={setView} />;
+    if (view === "ref_guide")    return <RefGuide setView={setView} />;
+    if (view === "ref_scores")   return <ScoreMath setView={setView} />;
+    if (activeIni)               return <InitiativeDetail ini={activeIni} setView={setView} />;
+
+    if (STAGE_VIEWS[view]) {
+      const { filter, title } = STAGE_VIEWS[view];
+      return <StageList stageFilter={filter} title={title} setView={setView} />;
+    }
+
+    return <Dashboard setView={setView} />;
+  };
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: T.ink, fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif", color: T.body, fontSize: 14 }}>
+
+      {/* Sidebar */}
+      <Sidebar view={view} setView={setView} />
+
+      {/* Main content */}
+      <div style={{ marginLeft: 220, flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Top bar */}
+        <div style={{ background: T.ink2, borderBottom: `1px solid ${T.border}`, padding: "12px 32px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 40 }}>
+          {activeIni && (
+            <button style={css.btnGhost} onClick={() => {
+              const stageToView = { discovery: "discovery", review: "portfolio", approved: "portfolio", definition: "portfolio", delivery: "delivery", handoff: "handoff" };
+              setView(stageToView[activeIni.stage] || "ideas");
+            }}>← Back</button>
           )}
-          {saved && <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 700 }}>✓ Saved</div>}
+          <span style={{ fontSize: 15, fontWeight: 700, color: T.loud }}>
+            {activeIni ? activeIni.title : ({
+              dashboard: "Dashboard", foundation: "Enterprise Foundation",
+              ncm_framework: "NCM Framework",
+              ideas: "New Ideas · Stage 1", discovery: "Product Discovery · Stage 2",
+              portfolio: "Portfolio Review · Stage 3", roadmap: "Roadmap Planning · Stage 4",
+              handoff: "Delivery Handoff · Stage 5", sprint_goals: "Sprint Goals · Stage 6",
+              gtm: "GTM Strategy · Stage 7", measure: "Campaign Launch · Stage 8",
+              measure_data: "Measure · Stage 9", outcome: "Outcome Summary · Stage 10",
+              lessons: "Lessons Learned · Stage 11",
+              investment_contract: "Delivery Readiness",
+              thought_leadership: "Thought Leadership",
+              ref_guide: "How To Use PGI", ref_scores: "Score Methodology",
+            }[view] || view)}
+          </span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            {activeIni && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {["idea", "discovery", "review", "approved", "definition", "delivery", "handoff"].map((s, i) => {
+                  const done = ["idea", "discovery", "review", "approved", "definition", "delivery", "handoff"].indexOf(activeIni.stage) >= i;
+                  return <div key={s} style={{ width: 8, height: 8, borderRadius: "50%", background: done ? stageColor(s) : T.border }} />;
+                })}
+              </div>
+            )}
+            {/* Per-page PPT download */}
+            <DownloadPPTBtn page={view} label="↓ PPT" />
+            {/* Leadership deck always in header */}
+            <DownloadPPTBtn page="leadership" label="↓ Leadership Deck" gold />
+          </div>
+        </div>
+
+        {/* Page content */}
+        <div style={{ flex: 1, padding: 32, maxWidth: ["sprint_goals","roadmap","campaign_launch"].includes(view) ? 1500 : 960, width: "100%", margin: "0 auto" }}>
+          {getContent()}
         </div>
       </div>
 
-      {/* AI Generate All */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
-        <button style={css.btnOut} onClick={() => generate("full")} disabled={loading.full}>
-          {loading.full ? "◆ Generating GTM Package..." : "◆ Generate Full GTM Package"}
-        </button>
-
-
-      </div>
-
-      {/* ICP + Positioning */}
-      <Section title="Target Audience & Positioning">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Ideal Customer Profile (ICP)</div>
-            <TextArea
-              value={ini.gtm_icp}
-              onChange={v => save({ gtm_icp: v })}
-              placeholder="Job title, company size, industry, pain point, buying trigger..."
-              rows={5}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Positioning Statement</div>
-            <TextArea
-              value={ini.gtm_positioning}
-              onChange={v => save({ gtm_positioning: v })}
-              placeholder="For [ICP] who [pain], [product] is the [category] that [key benefit] unlike [alternatives]..."
-              rows={5}
-            />
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Value Propositions</div>
-          <TextArea
-            value={ini.gtm_value_prop}
-            onChange={v => save({ gtm_value_prop: v })}
-            placeholder="3-5 value propositions tied to the target business metric..."
-            rows={4}
-          />
-        </div>
-      </Section>
-
-      {/* Channel + Campaign */}
-      <Section title="Channel Strategy & Campaign Intelligence">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Channel Strategy</div>
-            <TextArea
-              value={ini.gtm_channel_strategy}
-              onChange={v => save({ gtm_channel_strategy: v })}
-              placeholder="Primary and secondary channels with rationale..."
-              rows={5}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Campaign Intelligence</div>
-            <TextArea
-              value={ini.gtm_campaign_intel}
-              onChange={v => save({ gtm_campaign_intel: v })}
-              placeholder="Top campaigns most likely to move the target business metric..."
-              rows={5}
-            />
-          </div>
-        </div>
-      </Section>
-
-      {/* Launch Plan + Success Criteria */}
-      <Section title="Launch Plan & Success Criteria">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Launch Plan</div>
-            <TextArea
-              value={ini.gtm_launch_plan}
-              onChange={v => save({ gtm_launch_plan: v })}
-              placeholder="Soft launch → GA → Scale phases with sequencing logic..."
-              rows={6}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Launch Success Criteria</div>
-            <TextArea
-              value={ini.gtm_success_criteria}
-              onChange={v => save({ gtm_success_criteria: v })}
-              placeholder="3-5 measurable criteria with specific numbers tied to the contract metric..."
-              rows={6}
-            />
-          </div>
-        </div>
-      </Section>
-
-      {/* Notes */}
-      <Section title="GTM Notes">
-        <TextArea
-          value={ini.gtm_notes}
-          onChange={v => save({ gtm_notes: v })}
-          placeholder="Internal notes, open questions, stakeholder feedback..."
-          rows={4}
-        />
-      </Section>
+      {/* Chatty — always available */}
+      <Chatty currentView={view} />
     </div>
+  );
+}
+
+// ─── Root App ─────────────────────────────────────────────────
+export default function App() {
+  return (
+    <AppProvider>
+      <Inner />
+    </AppProvider>
   );
 }
