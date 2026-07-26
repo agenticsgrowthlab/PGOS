@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { T, css, calcPivot, pivotTier, stageLabel, stageColor } from "../lib/tokens";
-import { AIBox, Tag, ScoreRing, PivotSlider, AddNoteInput } from "../components/ui";
+import { AIBox, Tag, ScoreRing, PivotSlider, AddNoteInput, PivotModal } from "../components/ui";
 import { useApp } from "../contexts/AppContext";
 import { callAI, createNote, updateInitiative } from "../lib/api";
 
@@ -36,6 +36,7 @@ export function InitiativeDetail({ ini, setView }) {
   const { foundation, updateIni, orgId } = useApp();
   const [tab, setTab] = useState("discovery");
   const [loading, setLoading] = useState(null);
+  const [pivotModal, setPivotModal] = useState(false);
 
   if (!ini) return null;
 
@@ -96,13 +97,14 @@ export function InitiativeDetail({ ini, setView }) {
           <div style={css.h2}>{ini.title}</div>
           <div style={{ fontSize: 12, color: T.muted }}>Source: {ini.source} · {ini.source_detail}</div>
         </div>
-        <div style={{ textAlign: "center" }}>
+        <div style={{ textAlign: "center", cursor: "pointer" }} onClick={() => setPivotModal(true)} title="Click to see PIVOT math">
           <ScoreRing score={score} color={tier.color} size={64} />
           <div style={{ fontSize: 22, fontWeight: 900, color: tier.color, marginTop: -44, lineHeight: 1 }}>{score.toFixed(0)}</div>
-          <div style={{ fontSize: 10, marginTop: 44, color: T.muted }}>PIVOT</div>
+          <div style={{ fontSize: 10, marginTop: 44, color: T.muted }}>PIVOT ⓘ</div>
           <Tag label={tier.label} color={tier.color} bg={tier.bg} />
         </div>
       </div>
+      {pivotModal && <PivotModal ini={ini} onClose={() => setPivotModal(false)} />}
 
       {/* Strategic links display */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>

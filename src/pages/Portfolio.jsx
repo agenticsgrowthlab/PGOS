@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { T, css, calcPivot, pivotTier, calcWSJF, wsjfColor, stageLabel, stageColor } from "../lib/tokens";
-import { AIBox, Tag } from "../components/ui";
+import { AIBox, Tag, PivotModal } from "../components/ui";
 import { useApp } from "../contexts/AppContext";
 import { callAI } from "../lib/api";
 
@@ -132,7 +132,8 @@ export function Portfolio({ setView }) {
           riskReduction:   ini.wsjf_risk_reduction || ini.portfolioScore?.riskReduction   || 0,
           effort:          ini.wsjf_effort         || ini.portfolioScore?.effort           || 0,
         };
-        const wsjf = calcWSJF(ini);
+      const [pivotModal, setPivotModal] = useState(null);
+      const wsjf = calcWSJF(ini);
         const pivot = calcPivot(ini.pivot);
         const tier = pivotTier(pivot);
         const wc = wsjfColor(wsjf);
@@ -157,17 +158,29 @@ export function Portfolio({ setView }) {
                 <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>WSJF</div>
                 <div style={{ fontSize: 22, fontWeight: 900, color: wsjf > 0 ? wc : T.muted }}>{wsjf || "—"}</div>
               </div>
-              <div style={{ textAlign: "center" }}>
+              <div style={{ textAlign: "center", cursor: "pointer" }} onClick={() => setPivotModal(ini)} title="Click to see PIVOT math">
                 <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>PIVOT</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: tier.color }}>{pivot.toFixed(0)}</div>
                 <Tag label={tier.label} color={tier.color} bg={tier.bg} />
               </div>
+              {pivotModal?.id === ini.id && <PivotModal ini={ini} onClose={() => setPivotModal(null)} />}
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>APPROVED $</div>
                 {ini.approved ? (
-                  <div style={{ fontSize: 13, fontWeight: 800, color: T.green }}>
-                    ${Number(ini.investment?.approved || ini.investment_requested || 0).toLocaleString()}
-                  </div>
+                  <input
+                    type="number"
+                    defaultValue={ini.investment?.approved || ini.investment_requested || ""}
+                    placeholder="0"
+                    onBlur={e => {
+                      const val = Number(e.target.value) || 0;
+                      updateIni(ini.id, d => ({
+                        ...d,
+                        investment: { ...(d.investment || {}), approved: val },
+                        investment_approved: val,
+                      }));
+                    }}
+                    style={{ ...css.input, textAlign: "center", fontSize: 12, fontWeight: 800, color: T.green, width: 90, padding: "3px 4px" }}
+                  />
                 ) : (
                   <div style={{ fontSize: 12, color: T.muted }}>—</div>
                 )}
@@ -1058,6 +1071,7 @@ function EditableJourney({ ini, updateIni }) {
   );
 }
 
+
 function GoNoGo({ ini }) {
   const checks = [
     { label: "Problem Statement defined", done: !!ini.problem, required: true },
@@ -1343,7 +1357,8 @@ export function Handoff({ setView }) {
   const { initiatives, foundation, updateIni } = useApp();
   const [selected, setSelected]     = useState("");
   const [activeSection, setSection] = useState("overview");
-  const [regen, setRegen]           = useState({}); // { [aiKey]: loading }
+  const [regen, setRegen]           = useState({});
+  const [pivotModal, setPivotModal] = useState(false);
 
   const ini  = initiatives.find(i => i.id === selected) || null;
   const score = ini ? calcPivot(ini.pivot) : 0;
@@ -1390,7 +1405,7 @@ export function Handoff({ setView }) {
               ["Initiative", ini.title],
               ["ID", ini.slug],
               ["Stage", ini.stage],
-              ["PIVOT Score™", `${score.toFixed(0)} — ${tier.label}`],
+              ["PIVOT Score™", `${score.toFixed(0)} — ${tier.label}`, "pivot"],
               ["Investment Requested", ini.investment?.requested ? `$${Number(ini.investment.requested).toLocaleString()}` : "Not set"],
               ["Investment Approved", ini.investment?.approved ? `$${Number(ini.investment.approved).toLocaleString()}` : "Not set"],
               ["Engineering Estimate", ini.engSpend?.estimate ? `$${Number(ini.engSpend.estimate).toLocaleString()}` : "Not set"],
@@ -1399,12 +1414,17 @@ export function Handoff({ setView }) {
               ["Approved By", ini.approved_by || "Not set"],
               ["Approval Date", ini.approved_date || "Not set"],
               ["Status", ini.approved ? "✓ Approved for PI" : "Pending Approval"],
-            ].map(([label, value]) => (
-              <div key={label} style={{ background: "#1C2640", borderRadius: 8, padding: "10px 14px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{label}</div>
-                <div style={{ fontSize: 13, color: "#F0F4FF", fontWeight: 600 }}>{value}</div>
+            ].map(([label, value, type]) => (
+              <div key={label}
+                onClick={type === "pivot" ? () => setPivotModal(true) : undefined}
+                style={{ background: "#1C2640", borderRadius: 8, padding: "10px 14px", cursor: type === "pivot" ? "pointer" : "default", border: type === "pivot" ? `1px solid ${T.gold}40` : "none" }}
+                title={type === "pivot" ? "Click to see PIVOT math" : undefined}
+              >
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{label} {type === "pivot" && <span style={{ color: T.gold, fontSize: 9 }}>ⓘ</span>}</div>
+                <div style={{ fontSize: 13, color: type === "pivot" ? tier.color : "#F0F4FF", fontWeight: 600 }}>{value}</div>
               </div>
             ))}
+            {pivotModal && <PivotModal ini={ini} onClose={() => setPivotModal(false)} />}
             <div style={{ gridColumn: "1 / -1", background: "#1C2640", borderRadius: 8, padding: "10px 14px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Problem Statement</div>
               <div style={{ fontSize: 13, color: "#C8D4F0", lineHeight: 1.65 }}>{ini.problem || "Not defined."}</div>
@@ -1864,31 +1884,35 @@ export function SprintGoals({ setView }) {
   });
 
   // story_details: { [storyId]: { ac, note, labels, customLabels } }
-  const [details, setDetails] = useState(() => {
-    const all = {};
-    initiatives.forEach(ini => {
-      try { Object.assign(all, JSON.parse(ini.story_details || "{}")); } catch(e) {}
-    });
-    // Pre-populate AC from epics text for any story that has no detail yet
-    initiatives.forEach(ini => {
-      const acMap = extractStoryAC(ini.epics || "");
-      const stories = parseStories(ini.epics, ini.title, ini.slug);
-      stories.forEach(story => {
-        if (!all[story.id]) {
-          // Extract bare US-XX from compound id (e.g. "SLUG-US-01" → "US-01")
-          const bareId = story.id.replace(/^.*?-(US-\d+|S-\d+)$/i, "$1").toUpperCase();
-          const ac = acMap[bareId] || "";
-          if (ac) all[story.id] = { ac, note: "", labels: [], customLabels: [] };
-        } else if (!all[story.id].ac) {
-          // Story exists in details but AC is empty — fill from epics
-          const bareId = story.id.replace(/^.*?-(US-\d+|S-\d+)$/i, "$1").toUpperCase();
-          const ac = acMap[bareId] || "";
-          if (ac) all[story.id] = { ...all[story.id], ac };
-        }
+  // useEffect (not useState) so it re-runs when initiatives finish loading
+  const [details, setDetails] = useState({});
+
+  useEffect(() => {
+    if (!initiatives?.length) return;
+    setDetails(prev => {
+      const all = { ...prev };
+      // Merge saved story_details from DB
+      initiatives.forEach(ini => {
+        try { Object.assign(all, JSON.parse(ini.story_details || "{}")); } catch(e) {}
       });
+      // Pre-populate AC from epics for any story missing AC
+      initiatives.forEach(ini => {
+        const acMap = extractStoryAC(ini.epics || "");
+        const stories = parseStories(ini.epics, ini.title, ini.slug);
+        stories.forEach(story => {
+          const bareId = story.id.replace(/^.*?(US-\d+|S-\d+)$/i, "$1").toUpperCase();
+          const ac = acMap[bareId] || "";
+          if (!ac) return;
+          if (!all[story.id]) {
+            all[story.id] = { ac, note: "", labels: [], customLabels: [] };
+          } else if (!all[story.id].ac) {
+            all[story.id] = { ...all[story.id], ac };
+          }
+        });
+      });
+      return all;
     });
-    return all;
-  });
+  }, [initiatives]);
 
   const allStories = initiatives.flatMap(ini =>
     parseStories(ini.epics, ini.title, ini.slug)
