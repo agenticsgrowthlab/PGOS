@@ -123,6 +123,7 @@ export function normalizeInitiative(row) {
     roadmap_start: row.roadmap_start || null,
     roadmap_end:   row.roadmap_end   || null,
     bar_color:     row.bar_color     || null,
+    jira_tickets:  row.jira_tickets  || null,
     // Linkage names (from JOIN)
     okrName: row.okr_name || "",
     themeName: row.theme_name || "",
@@ -194,6 +195,7 @@ export function denormalizeInitiative(ini) {
     roadmap_start: ini.roadmap_start ?? null,
     roadmap_end:   ini.roadmap_end   ?? null,
     bar_color:     ini.bar_color     ?? null,
+    jira_tickets:  ini.jira_tickets  ?? null,
     // NOTE: approved/approved_by/approved_date intentionally excluded —
     // managed exclusively by the direct write in InitiativeDetail.jsx
   };

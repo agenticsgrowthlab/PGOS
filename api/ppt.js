@@ -748,9 +748,182 @@ const PAGE_MAP = {
 };
 
 // ─── Handler ──────────────────────────────────────────────────
+// ─── PRD Word Doc builder ──────────────────────────────────────
+async function buildPRDDocx(initiative, foundation) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
+    BorderStyle, ShadingType, Table, TableRow, TableCell, WidthType,
+    Header, Footer, PageNumber, NumberFormat, convertInchesToTwip } = await import("docx");
+
+  const ini = initiative;
+  const prdText = ini.prd || "";
+
+  // Split PRD text into sections by markdown headings
+  const lines = prdText.split("\n");
+  const paras = [];
+
+  // Cover header bar
+  paras.push(
+    new Paragraph({
+      children: [new TextRun({ text: "PRODUCT REQUIREMENTS DOCUMENT", bold: true, size: 28, color: "FFFFFF" })],
+      heading: HeadingLevel.TITLE,
+      alignment: AlignmentType.CENTER,
+      shading: { type: ShadingType.CLEAR, fill: "1B3A6B" },
+      spacing: { before: 0, after: 120 },
+    })
+  );
+
+  // Initiative meta block
+  const metaItems = [
+    ["Initiative", ini.title || "Untitled"],
+    ["ID", ini.slug || "—"],
+    ["Stage", ini.stage || "—"],
+    ["Investment Requested", ini.investment?.requested ? `$${Number(ini.investment.requested).toLocaleString()}` : "—"],
+    ["Prepared by", foundation?.company || "Agentics Growth Lab"],
+    ["Date", new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })],
+  ];
+
+  paras.push(new Paragraph({ text: "", spacing: { before: 200, after: 0 } }));
+
+  for (const [label, value] of metaItems) {
+    paras.push(new Paragraph({
+      children: [
+        new TextRun({ text: `${label}:  `, bold: true, size: 22, color: "1B3A6B" }),
+        new TextRun({ text: value, size: 22 }),
+      ],
+      spacing: { before: 60, after: 60 },
+    }));
+  }
+
+  // Divider
+  paras.push(new Paragraph({
+    text: "",
+    border: { bottom: { color: "1B3A6B", space: 1, style: BorderStyle.SINGLE, size: 12 } },
+    spacing: { before: 200, after: 200 },
+  }));
+
+  // Parse PRD body lines
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { paras.push(new Paragraph({ text: "", spacing: { before: 60, after: 0 } })); continue; }
+
+    if (trimmed.startsWith("### ")) {
+      paras.push(new Paragraph({
+        text: trimmed.slice(4),
+        heading: HeadingLevel.HEADING_3,
+        spacing: { before: 240, after: 80 },
+      }));
+    } else if (trimmed.startsWith("## ")) {
+      paras.push(new Paragraph({
+        text: trimmed.slice(3),
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 360, after: 120 },
+      }));
+    } else if (trimmed.startsWith("# ")) {
+      paras.push(new Paragraph({
+        text: trimmed.slice(2),
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 480, after: 160 },
+      }));
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      paras.push(new Paragraph({
+        text: trimmed.slice(2),
+        bullet: { level: 0 },
+        spacing: { before: 40, after: 40 },
+      }));
+    } else if (/^\d+\. /.test(trimmed)) {
+      paras.push(new Paragraph({
+        text: trimmed.replace(/^\d+\. /, ""),
+        numbering: { reference: "prd-numbering", level: 0 },
+        spacing: { before: 40, after: 40 },
+      }));
+    } else {
+      // Parse inline bold (**text**)
+      const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
+      const runs = parts.map(p => {
+        if (p.startsWith("**") && p.endsWith("**")) {
+          return new TextRun({ text: p.slice(2, -2), bold: true, size: 22 });
+        }
+        return new TextRun({ text: p, size: 22 });
+      });
+      paras.push(new Paragraph({ children: runs, spacing: { before: 60, after: 60 } }));
+    }
+  }
+
+  const doc = new Document({
+    numbering: {
+      config: [{
+        reference: "prd-numbering",
+        levels: [{ level: 0, format: NumberFormat.DECIMAL, text: "%1.", alignment: AlignmentType.START,
+          style: { paragraph: { indent: { left: convertInchesToTwip(0.5), hanging: convertInchesToTwip(0.25) } } } }],
+      }],
+    },
+    styles: {
+      default: {
+        document: { run: { font: "Calibri", size: 22, color: "1A1A2E" } },
+      },
+      paragraphStyles: [
+        { id: "Heading1", name: "Heading 1", run: { bold: true, size: 32, color: "1B3A6B" } },
+        { id: "Heading2", name: "Heading 2", run: { bold: true, size: 26, color: "2E6DA4" } },
+        { id: "Heading3", name: "Heading 3", run: { bold: true, size: 24, color: "1B3A6B" } },
+      ],
+    },
+    sections: [{
+      properties: {
+        page: { size: { width: 12240, height: 15840 }, margin: { top: 1080, bottom: 1080, left: 1260, right: 1260 } },
+      },
+      headers: {
+        default: new Header({
+          children: [new Paragraph({
+            children: [
+              new TextRun({ text: `${ini.slug || ""} — PRD  `, size: 16, color: "6B7A99" }),
+              new TextRun({ text: "CONFIDENTIAL", size: 16, color: "D4A843", bold: true }),
+            ],
+            border: { bottom: { color: "1B3A6B", style: BorderStyle.SINGLE, size: 6, space: 1 } },
+          })],
+        }),
+      },
+      footers: {
+        default: new Footer({
+          children: [new Paragraph({
+            children: [
+              new TextRun({ text: `${ini.title || "Initiative"} · Product Requirements Document · `, size: 16, color: "6B7A99" }),
+              new TextRun({ children: [PageNumber.CURRENT], size: 16, color: "6B7A99" }),
+              new TextRun({ text: " of ", size: 16, color: "6B7A99" }),
+              new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: "6B7A99" }),
+            ],
+            alignment: AlignmentType.RIGHT,
+          })],
+        }),
+      },
+      children: paras,
+    }],
+  });
+
+  return Packer.toBuffer(doc);
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+  // ── PRD Word Doc export (separate from PPT flow) ──────────────
+  const { type } = req.body;
+  if (type === "prd_docx") {
+    try {
+      const { initiative, foundation } = req.body;
+      if (!initiative?.prd) return res.status(400).json({ error: "No PRD content to export" });
+      const buf = await buildPRDDocx(initiative, foundation);
+      const filename = `PRD_${(initiative.slug || initiative.title || "export").replace(/\s+/g, "_")}.docx`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", buf.length);
+      return res.status(200).send(buf);
+    } catch (err) {
+      console.error("[prd_docx]", err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── Standard PPT flow ─────────────────────────────────────────
   const { page = "dashboard" } = req.body;
   const entry = PAGE_MAP[page];
   if (!entry) return res.status(400).json({ error: `Unknown page: ${page}` });

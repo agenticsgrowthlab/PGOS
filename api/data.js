@@ -1,5 +1,5 @@
 /**
- * /api/data  — Single data endpoint for all PGOS CRUD operations--
+ * /api/data  — Single data endpoint for all PGOS CRUD operations
  *
  * Body: { resource, action, payload }
  *
@@ -505,7 +505,8 @@ async function handleInitiatives(sql, action, payload) {
           UPDATE initiatives SET
             roadmap_start = COALESCE(${r.roadmap_start || null}::date, roadmap_start),
             roadmap_end   = COALESCE(${r.roadmap_end || null}::date,   roadmap_end),
-            bar_color     = COALESCE(${str(r.bar_color)}::text,        bar_color)
+            bar_color     = COALESCE(${str(r.bar_color)}::text,        bar_color),
+            jira_tickets  = COALESCE(${str(r.jira_tickets)}::text,     jira_tickets)
           WHERE id = ${id}
         `;
       } catch (e) { console.error('[roadmap]', e.message); }

@@ -600,6 +600,327 @@ function JourneyMap({ current, future }) {
   );
 }
 
+
+
+// ─── Editable Epics with Version History ─────────────────────
+function EditableEpics({ ini, updateIni }) {
+  const [editMode, setEditMode] = useState(false);
+  const [draft, setDraft] = useState(ini.epics || "");
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyView, setHistoryView] = useState(null); // { text, ts }
+
+  // epics_history: [{text, ts}] newest first
+  const history = (() => {
+    try { return JSON.parse(ini.epics_history || "[]"); } catch { return []; }
+  })();
+
+  const saveEdit = () => {
+    if (draft === ini.epics) { setEditMode(false); return; }
+    // Save current version to history before overwriting
+    const prev = ini.epics;
+    if (prev && prev.trim()) {
+      const newHistory = [
+        { text: prev, ts: new Date().toISOString() },
+        ...history,
+      ].slice(0, 20); // keep last 20 versions
+      updateIni(ini.id, d => ({
+        ...d,
+        epics: draft,
+        epics_history: JSON.stringify(newHistory),
+      }));
+    } else {
+      updateIni(ini.id, d => ({ ...d, epics: draft }));
+    }
+    setEditMode(false);
+  };
+
+  const cancelEdit = () => {
+    setDraft(ini.epics || "");
+    setEditMode(false);
+  };
+
+  const restoreVersion = (entry) => {
+    if (!window.confirm("Restore this version? Current text will be saved to history.")) return;
+    const current = ini.epics;
+    const newHistory = [
+      { text: current, ts: new Date().toISOString() },
+      ...history.filter(h => h.ts !== entry.ts),
+    ].slice(0, 20);
+    updateIni(ini.id, d => ({
+      ...d,
+      epics: entry.text,
+      epics_history: JSON.stringify(newHistory),
+    }));
+    setDraft(entry.text);
+    setHistoryView(null);
+    setShowHistory(false);
+  };
+
+  const fmtTs = (ts) => {
+    try {
+      return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    } catch { return ts; }
+  };
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+        {!editMode ? (
+          <button style={css.btnOut} onClick={() => { setDraft(ini.epics || ""); setEditMode(true); setShowHistory(false); }}>
+            ✏ Edit Epics & Stories
+          </button>
+        ) : (
+          <>
+            <button style={css.btnGold} onClick={saveEdit}>✓ Save</button>
+            <button style={css.btnGhost} onClick={cancelEdit}>✕ Cancel</button>
+          </>
+        )}
+        {history.length > 0 && !editMode && (
+          <button style={{ ...css.btnGhost, fontSize: 11 }} onClick={() => { setShowHistory(p => !p); setHistoryView(null); }}>
+            🕐 {history.length} version{history.length > 1 ? "s" : ""}
+          </button>
+        )}
+      </div>
+
+      {/* Version history panel */}
+      {showHistory && !editMode && (
+        <div style={{ background: T.ink3, border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Version History</div>
+          {historyView ? (
+            <div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
+                <span style={{ fontSize: 11, color: T.muted }}>Saved {fmtTs(historyView.ts)}</span>
+                <button style={{ ...css.btnGold, fontSize: 11, padding: "3px 10px" }} onClick={() => restoreVersion(historyView)}>↺ Restore this version</button>
+                <button style={{ ...css.btnGhost, fontSize: 11 }} onClick={() => setHistoryView(null)}>← Back to list</button>
+              </div>
+              <pre style={{ color: T.body, fontSize: 11, lineHeight: 1.7, whiteSpace: "pre-wrap", maxHeight: 300, overflowY: "auto", background: T.ink, borderRadius: 6, padding: 12, margin: 0 }}>
+                {historyView.text}
+              </pre>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {history.map((entry, i) => (
+                <div key={entry.ts} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 8px", background: T.ink, borderRadius: 6 }}>
+                  <span style={{ fontSize: 11, color: T.muted, flex: 1 }}>v{history.length - i} · {fmtTs(entry.ts)}</span>
+                  <span style={{ fontSize: 10, color: T.muted }}>{entry.text.split("\n").length} lines</span>
+                  <button style={{ ...css.btnGhost, fontSize: 10, padding: "2px 8px" }} onClick={() => setHistoryView(entry)}>View</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Edit textarea */}
+      {editMode && (
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          style={{ ...css.ta, width: "100%", boxSizing: "border-box", minHeight: 500, fontSize: 12, fontFamily: "monospace", lineHeight: 1.7, resize: "vertical" }}
+          placeholder={"E-01: Epic Title\n  Story ID: US-01\n  As a user I want...\n\nE-02: Second Epic..."}
+        />
+      )}
+
+      {/* Normal view — Jira tracker */}
+      {!editMode && <EpicsJiraTracker ini={ini} updateIni={updateIni} />}
+    </div>
+  );
+}
+
+// ─── Epics & Stories Jira Tracker ────────────────────────────
+function parseEpicsStructured(text) {
+  if (!text) return [];
+  const epics = [];
+  let currentEpic = null;
+  const lines = text.split("\n");
+
+  lines.forEach(line => {
+    const clean = line.replace(/\*\*/g, "").trim();
+    if (!clean) return;
+
+    // Epic line detection
+    const epicMatch = clean.match(/^(E-\d+)[:\s–-]+(.+)/i)
+      || clean.match(/^Epic\s*(\d+)[:\s–-]+(.+)/i)
+      || clean.match(/^#{1,3}\s*(E-\d+)[:\s–-]+(.+)/i);
+    if (epicMatch) {
+      const id = epicMatch[1].toUpperCase().startsWith("E-")
+        ? epicMatch[1].toUpperCase()
+        : `E-${epicMatch[1].padStart(2,"0")}`;
+      currentEpic = { id, title: epicMatch[2].trim().slice(0,80), stories: [], raw: line };
+      epics.push(currentEpic);
+      return;
+    }
+
+    // Story line detection — same logic as parseStories
+    const storyMatch = clean.match(/^(US-\d+|S-\d+)[:\s–-]+(.{3,})/i)
+      || clean.match(/^Story\s*(?:ID)?[:\s]+(US-\d+)[:\s–-]*(.{3,})?/i);
+    if (storyMatch) {
+      const id = storyMatch[1].toUpperCase();
+      const label = (storyMatch[2] || "").trim().slice(0,80);
+      if (currentEpic && label) {
+        currentEpic.stories.push({ id, label, raw: line });
+      } else if (label) {
+        // Story outside an epic — create orphan epic
+        if (!currentEpic) {
+          currentEpic = { id: "E-00", title: "General", stories: [], raw: "" };
+          epics.push(currentEpic);
+        }
+        currentEpic.stories.push({ id, label, raw: line });
+      }
+      return;
+    }
+
+    // "As a..." attached to pending context
+    if (/^As a /i.test(clean) && currentEpic && currentEpic.stories.length > 0) {
+      // Enrich last story label if it's still generic
+      const last = currentEpic.stories[currentEpic.stories.length - 1];
+      if (!last.label || last.label.length < 10) {
+        last.label = clean.slice(0, 80);
+      }
+    }
+  });
+
+  return epics.filter(e => e.stories.length > 0 || e.id !== "E-00");
+}
+
+function EpicsJiraTracker({ ini, updateIni }) {
+  const epics = parseEpicsStructured(ini.epics);
+
+  // jira_tickets: { "E-01": { done: true, ticket: "PROJ-123" }, "US-01": { done: false, ticket: "" }, ... }
+  const [tickets, setTickets] = useState(() => {
+    try { return JSON.parse(ini.jira_tickets || "{}"); } catch { return {}; }
+  });
+
+  // Re-sync if ini changes (org switch etc.)
+  useEffect(() => {
+    try { setTickets(JSON.parse(ini.jira_tickets || "{}")); } catch { setTickets({}); }
+  }, [ini.id]);
+
+  const save = (next) => {
+    setTickets(next);
+    updateIni(ini.id, d => ({ ...d, jira_tickets: JSON.stringify(next) }));
+  };
+
+  const toggle = (id) => {
+    const next = { ...tickets, [id]: { ...(tickets[id] || {}), done: !(tickets[id]?.done) } };
+    save(next);
+  };
+
+  const setTicket = (id, val) => {
+    const next = { ...tickets, [id]: { ...(tickets[id] || {}), ticket: val } };
+    save(next);
+  };
+
+  const doneCount  = Object.values(tickets).filter(t => t.done).length;
+  const totalItems = epics.reduce((a, e) => a + 1 + e.stories.length, 0);
+
+  if (!ini.epics) return (
+    <div style={{ color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>
+      Epics & Stories not generated yet. Use the AI generate button above.
+    </div>
+  );
+
+  if (epics.length === 0) return (
+    <div>
+      <div style={{ color: "#6B7A99", fontSize: 12, fontStyle: "italic", marginBottom: 12 }}>
+        Could not parse epics into structured format. Raw text shown below.
+      </div>
+      <TextSection text={ini.epics} />
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Progress bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: "10px 14px", background: T.ink3, borderRadius: 8, border: `1px solid ${T.border}` }}>
+        <div style={{ flex: 1, height: 6, background: T.ink, borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${totalItems ? (doneCount/totalItems)*100 : 0}%`, background: T.green, borderRadius: 3, transition: "width 0.3s" }} />
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: doneCount === totalItems && totalItems > 0 ? T.green : T.muted, whiteSpace: "nowrap" }}>
+          {doneCount}/{totalItems} in Jira
+        </div>
+        {doneCount === totalItems && totalItems > 0 && (
+          <span style={{ fontSize: 11, color: T.green }}>✓ All synced!</span>
+        )}
+      </div>
+
+      {/* Epic + Story rows */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {epics.map(epic => {
+          const epicDone = tickets[epic.id]?.done;
+          const epicTicket = tickets[epic.id]?.ticket || "";
+          return (
+            <div key={epic.id} style={{ border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
+              {/* Epic row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: T.ink3, borderLeft: `3px solid ${epicDone ? T.green : T.gold}` }}>
+                <input
+                  type="checkbox"
+                  checked={!!epicDone}
+                  onChange={() => toggle(epic.id)}
+                  style={{ width: 16, height: 16, cursor: "pointer", accentColor: T.green, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 11, fontWeight: 800, color: T.gold, minWidth: 40 }}>{epic.id}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: epicDone ? T.muted : T.loud, flex: 1, textDecoration: epicDone ? "line-through" : "none" }}>
+                  {epic.title}
+                </span>
+                <input
+                  value={epicTicket}
+                  onChange={e => setTicket(epic.id, e.target.value)}
+                  placeholder="JIRA-###"
+                  style={{ ...css.input, width: 110, fontSize: 11, padding: "4px 8px", fontFamily: "monospace", color: epicTicket ? T.steel : T.muted }}
+                />
+                {epicTicket && (
+                  <a
+                    href={`https://jira.atlassian.com/browse/${epicTicket}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 10, color: T.steel, textDecoration: "none", whiteSpace: "nowrap" }}
+                  >↗ Open</a>
+                )}
+              </div>
+
+              {/* Story rows */}
+              {epic.stories.map(story => {
+                const storyDone   = tickets[story.id]?.done;
+                const storyTicket = tickets[story.id]?.ticket || "";
+                return (
+                  <div key={story.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px 8px 30px", background: T.ink2, borderTop: `1px solid ${T.border}` }}>
+                    <input
+                      type="checkbox"
+                      checked={!!storyDone}
+                      onChange={() => toggle(story.id)}
+                      style={{ width: 14, height: 14, cursor: "pointer", accentColor: T.green, flexShrink: 0 }}
+                    />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: T.steel, minWidth: 44 }}>{story.id}</span>
+                    <span style={{ fontSize: 12, color: storyDone ? T.muted : T.body, flex: 1, lineHeight: 1.5, textDecoration: storyDone ? "line-through" : "none" }}>
+                      {story.label}
+                    </span>
+                    <input
+                      value={storyTicket}
+                      onChange={e => setTicket(story.id, e.target.value)}
+                      placeholder="JIRA-###"
+                      style={{ ...css.input, width: 110, fontSize: 11, padding: "4px 8px", fontFamily: "monospace", color: storyTicket ? T.steel : T.muted }}
+                    />
+                    {storyTicket && (
+                      <a
+                        href={`https://jira.atlassian.com/browse/${storyTicket}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 10, color: T.steel, textDecoration: "none", whiteSpace: "nowrap" }}
+                      >↗ Open</a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TextSection({ text, placeholder }) {
   if (!text) return <div style={{ color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>{placeholder || "Not generated yet."}</div>;
   const blocks = text.split("\n").filter(l => l.trim());
@@ -657,12 +978,93 @@ function RiskCards({ text }) {
   );
 }
 
+// ─── Reusable editable wrapper for any text field ─────────────
+function EditableSection({ ini, updateIni, field, label, placeholder, renderView }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const value = ini[field] || "";
+
+  const startEdit = () => { setDraft(value); setEditing(true); };
+  const save = () => { updateIni(ini.id, d => ({ ...d, [field]: draft })); setEditing(false); };
+  const cancel = () => setEditing(false);
+
+  return (
+    <div>
+      {!editing && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button style={css.btnOut} onClick={startEdit}>✏ Edit {label}</button>
+        </div>
+      )}
+      {editing && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button style={{ ...css.btnOut, borderColor: T.green, color: T.green }} onClick={save}>✓ Save</button>
+          <button style={css.btnOut} onClick={cancel}>✕ Cancel</button>
+        </div>
+      )}
+      {editing ? (
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          style={{ width: "100%", minHeight: 320, background: "#101828", border: `1px solid ${T.gold}`, borderRadius: 8, color: "#F0F4FF", fontSize: 13, fontFamily: "monospace", padding: 16, resize: "vertical", boxSizing: "border-box" }}
+        />
+      ) : value ? renderView(value) : (
+        <div style={{ background: T.ink2, borderRadius: 8, padding: 16, color: T.muted, fontSize: 13, fontStyle: "italic" }}>
+          {placeholder}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Editable Journey (two fields: current + future) ──────────
+function EditableJourney({ ini, updateIni }) {
+  const [editing, setEditing] = useState(false);
+  const [curDraft, setCurDraft] = useState("");
+  const [futDraft, setFutDraft] = useState("");
+
+  const startEdit = () => { setCurDraft(ini.currentJourney || ""); setFutDraft(ini.futureJourney || ""); setEditing(true); };
+  const save = () => { updateIni(ini.id, d => ({ ...d, currentJourney: curDraft, futureJourney: futDraft })); setEditing(false); };
+  const cancel = () => setEditing(false);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {!editing ? (
+          <button style={css.btnOut} onClick={startEdit}>✏ Edit Journey Map</button>
+        ) : (
+          <>
+            <button style={{ ...css.btnOut, borderColor: T.green, color: T.green }} onClick={save}>✓ Save</button>
+            <button style={css.btnOut} onClick={cancel}>✕ Cancel</button>
+          </>
+        )}
+      </div>
+      {editing ? (
+        <div style={{ display: "grid", gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: T.gold, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Current Journey</div>
+            <textarea value={curDraft} onChange={e => setCurDraft(e.target.value)}
+              style={{ width: "100%", minHeight: 200, background: "#101828", border: `1px solid ${T.gold}`, borderRadius: 8, color: "#F0F4FF", fontSize: 13, fontFamily: "monospace", padding: 16, resize: "vertical", boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: T.green, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Future Journey</div>
+            <textarea value={futDraft} onChange={e => setFutDraft(e.target.value)}
+              style={{ width: "100%", minHeight: 200, background: "#101828", border: `1px solid ${T.green}`, borderRadius: 8, color: "#F0F4FF", fontSize: 13, fontFamily: "monospace", padding: 16, resize: "vertical", boxSizing: "border-box" }} />
+          </div>
+        </div>
+      ) : (
+        <JourneyMap current={ini.currentJourney} future={ini.futureJourney} />
+      )}
+    </div>
+  );
+}
+
 function GoNoGo({ ini }) {
   const checks = [
     { label: "Problem Statement defined", done: !!ini.problem, required: true },
     { label: "PIVOT Score calculated", done: calcPivot(ini.pivot) > 0, required: true },
     { label: "Executive Brief generated", done: !!ini.execBrief, required: true },
     { label: "Investment approved", done: !!ini.approved, required: true },
+    { label: "PRD (Product Requirements Document) complete", done: !!ini.prd, required: true },
     { label: "Customer Personas generated", done: !!ini.personas, required: true },
     { label: "Current Journey mapped", done: !!ini.currentJourney, required: true },
     { label: "Future Journey mapped", done: !!ini.futureJourney, required: true },
@@ -670,8 +1072,10 @@ function GoNoGo({ ini }) {
     { label: "Use Cases documented", done: !!ini.usecases, required: true },
     { label: "Epics & Stories generated", done: !!ini.epics, required: true },
     { label: "Risk Register (ROAM) complete", done: !!ini.riskReg, required: true },
+    { label: "Telemetry Readiness plan complete", done: !!ini.telemetry, required: true },
+    { label: "Test Cases documented", done: !!ini.testcases, required: true },
     { label: "Engineering estimate entered", done: !!(ini.engSpend?.estimate || ini.engSpend?.sprints), required: false },
-    { label: "Quarterly planning objectives set", done: !!ini.pi_planning, required: false },
+    { label: "Quarterly planning objectives set", done: !!(ini.piPlanning || ini.pi_planning), required: false },
   ];
   const required = checks.filter(c => c.required);
   const optional = checks.filter(c => !c.required);
@@ -722,34 +1126,55 @@ function GoNoGo({ ini }) {
   );
 }
 
-// ─── Generic AI Section (reusable for telemetry, test cases, etc.) ──────
+// ─── Generic AI Section — editable, persisted, no duplicate title ──────
 function SimpleAISection({ ini, updateIni, foundation, field, aiKey, label, placeholder }) {
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
   const value = ini[field] || "";
 
   const gen = async () => {
     setLoading(true);
+    setEditing(false);
     const text = await callAI(aiKey, { foundation, initiative: ini }).catch(() => "");
     if (text) updateIni(ini.id, d => ({ ...d, [field]: text }));
     setLoading(false);
   };
 
+  const startEdit = () => { setDraft(value); setEditing(true); };
+  const save = () => { updateIni(ini.id, d => ({ ...d, [field]: draft })); setEditing(false); };
+  const cancel = () => setEditing(false);
+
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <button style={css.btnGold} onClick={gen} disabled={loading}>
-          {loading ? `Generating ${label}…` : value ? `◆ Regenerate ${label}` : `◆ Generate ${label}`}
+          {loading ? `Generating…` : value ? `◆ Regenerate` : `◆ Generate ${label}`}
         </button>
+        {value && !editing && (
+          <button style={css.btnOut} onClick={startEdit}>✏ Edit</button>
+        )}
+        {editing && (
+          <>
+            <button style={{ ...css.btnOut, borderColor: T.green, color: T.green }} onClick={save}>✓ Save</button>
+            <button style={css.btnOut} onClick={cancel}>✕ Cancel</button>
+          </>
+        )}
       </div>
       {loading && <AIBox label={`◆ ${label} — Generating`} loading />}
-      {value && !loading ? (
+      {!loading && editing && (
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          style={{ width: "100%", minHeight: 320, background: "#101828", border: `1px solid ${T.gold}`, borderRadius: 8, color: "#F0F4FF", fontSize: 13, fontFamily: "monospace", padding: 16, resize: "vertical", boxSizing: "border-box" }}
+        />
+      )}
+      {!loading && !editing && value && (
         <div style={{ background: T.ink2, borderRadius: 8, padding: 20, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>
-            {label} — {ini.title}
-          </div>
           <TextSection text={value} placeholder="" />
         </div>
-      ) : !loading && (
+      )}
+      {!loading && !editing && !value && (
         <div style={{ background: T.ink2, borderRadius: 8, padding: 16, color: T.muted, fontSize: 13, fontStyle: "italic" }}>
           {placeholder}
         </div>
@@ -758,33 +1183,84 @@ function SimpleAISection({ ini, updateIni, foundation, field, aiKey, label, plac
   );
 }
 
-// ─── PRD Section ──────────────────────────────────────────────
+// ─── PRD Section — editable, persisted, Word export ───────────
 function PRDSection({ ini, updateIni, foundation }) {
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const gen = async () => {
     setLoading(true);
+    setEditing(false);
     const text = await callAI("prd", { foundation, initiative: ini }).catch(() => "");
     if (text) updateIni(ini.id, d => ({ ...d, prd: text }));
     setLoading(false);
   };
 
+  const startEdit = () => { setDraft(ini.prd || ""); setEditing(true); };
+  const save = () => { updateIni(ini.id, d => ({ ...d, prd: draft })); setEditing(false); };
+  const cancel = () => setEditing(false);
+
+  const exportWord = async () => {
+    if (!ini.prd) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/ppt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "prd_docx", initiative: ini, foundation }),
+      });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PRD_${ini.slug || ini.title?.replace(/\s+/g, "_") || "export"}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Word export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <button style={css.btnGold} onClick={gen} disabled={loading}>
           {loading ? "Generating PRD…" : ini.prd ? "◆ Regenerate PRD" : "◆ Generate PRD"}
         </button>
+        {ini.prd && !editing && (
+          <button style={css.btnOut} onClick={startEdit}>✏ Edit</button>
+        )}
+        {ini.prd && !editing && (
+          <button style={{ ...css.btnOut, borderColor: T.steel, color: T.steel }} onClick={exportWord} disabled={exporting}>
+            {exporting ? "Exporting…" : "↓ Word Doc"}
+          </button>
+        )}
+        {editing && (
+          <>
+            <button style={{ ...css.btnOut, borderColor: T.green, color: T.green }} onClick={save}>✓ Save</button>
+            <button style={css.btnOut} onClick={cancel}>✕ Cancel</button>
+          </>
+        )}
       </div>
       {loading && <AIBox label="◆ Product Requirements Document — Generating" loading />}
-      {ini.prd && !loading ? (
+      {!loading && editing && (
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          style={{ width: "100%", minHeight: 400, background: "#101828", border: `1px solid ${T.gold}`, borderRadius: 8, color: "#F0F4FF", fontSize: 13, fontFamily: "monospace", padding: 16, resize: "vertical", boxSizing: "border-box" }}
+        />
+      )}
+      {!loading && !editing && ini.prd && (
         <div style={{ background: T.ink2, borderRadius: 8, padding: 20, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>
-            Product Requirements Document — {ini.title}
-          </div>
           <TextSection text={ini.prd} placeholder="" />
         </div>
-      ) : !loading && (
+      )}
+      {!loading && !editing && !ini.prd && (
         <div style={{ background: T.ink2, borderRadius: 8, padding: 16, color: T.muted, fontSize: 13, fontStyle: "italic" }}>
           No PRD generated yet. Click the button above to generate a full PRD including functional requirements, NFRs, acceptance criteria, and open questions.
         </div>
@@ -793,20 +1269,24 @@ function PRDSection({ ini, updateIni, foundation }) {
   );
 }
 
-// ─── PI Tab — inline generate for Handoff stage ───────────────
+// ─── PI Tab — editable, persisted ─────────────────────────────
 function PITab({ ini, updateIni }) {
   const { initiatives, foundation } = useApp();
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
 
   const genPI = async () => {
     setLoading(true);
+    setEditing(false);
     const text = await callAI("pi_planning", { foundation, initiatives }).catch(() => "");
-    if (text) {
-      // Update this ini + all approved
-      updateIni(ini.id, d => ({ ...d, piPlanning: text }));
-    }
+    if (text) updateIni(ini.id, d => ({ ...d, piPlanning: text }));
     setLoading(false);
   };
+
+  const startEdit = () => { setDraft(ini.piPlanning || ""); setEditing(true); };
+  const save = () => { updateIni(ini.id, d => ({ ...d, piPlanning: draft })); setEditing(false); };
+  const cancel = () => setEditing(false);
 
   return (
     <div>
@@ -814,7 +1294,7 @@ function PITab({ ini, updateIni }) {
         {[
           ["Teams", ini.engSpend?.teams || ini.eng_teams || "—", T.steel],
           ["Sprints", ini.engSpend?.sprints || ini.eng_sprints || "—", T.gold],
-          ["Estimate", ini.engSpend?.estimate || ini.investment_requested
+          ["Estimate", (ini.engSpend?.estimate || ini.investment_requested)
             ? `$${Number(ini.engSpend?.estimate || ini.investment_requested || 0).toLocaleString()}` : "—", T.green],
         ].map(([l,v,c]) => (
           <div key={l} style={{ background: "#1C2640", borderRadius: 8, padding: 14, textAlign: "center" }}>
@@ -823,18 +1303,34 @@ function PITab({ ini, updateIni }) {
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <button style={css.btnGold} onClick={genPI} disabled={loading}>
           {loading ? "Generating…" : "◆ Generate Quarterly Planning Package"}
         </button>
-        {loading && <AIBox label="◆ Quarterly Planning — Building Package" loading />}
+        {ini.piPlanning && !editing && (
+          <button style={css.btnOut} onClick={startEdit}>✏ Edit</button>
+        )}
+        {editing && (
+          <>
+            <button style={{ ...css.btnOut, borderColor: T.green, color: T.green }} onClick={save}>✓ Save</button>
+            <button style={css.btnOut} onClick={cancel}>✕ Cancel</button>
+          </>
+        )}
       </div>
-      {ini.piPlanning ? (
+      {loading && <AIBox label="◆ Quarterly Planning — Building Package" loading />}
+      {!loading && editing && (
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          style={{ width: "100%", minHeight: 320, background: "#101828", border: `1px solid ${T.gold}`, borderRadius: 8, color: "#F0F4FF", fontSize: 13, fontFamily: "monospace", padding: 16, resize: "vertical", boxSizing: "border-box" }}
+        />
+      )}
+      {!loading && !editing && ini.piPlanning && (
         <div style={{ background: "#1C2640", borderRadius: 8, padding: 14 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Quarterly Planning Package</div>
           <TextSection text={ini.piPlanning} placeholder="" />
         </div>
-      ) : (
+      )}
+      {!loading && !editing && !ini.piPlanning && (
         <div style={{ background: "#1C2640", borderRadius: 8, padding: 16, color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>
           No Quarterly Planning package generated yet. Click the button above to generate objectives, risks, dependencies, capacity assessment, and confidence vote.
         </div>
@@ -920,17 +1416,24 @@ export function Handoff({ setView }) {
           </div>
         );
       case "personas":
-        return <PersonaCards text={ini.personas} />;
+        return <EditableSection ini={ini} updateIni={updateIni} field="personas" label="Customer Personas"
+          placeholder="No personas generated yet. Use Regenerate above to generate AI personas." renderView={t => <PersonaCards text={t} />} />;
       case "journey":
-        return <JourneyMap current={ini.currentJourney} future={ini.futureJourney} />;
+        return <EditableJourney ini={ini} updateIni={updateIni} />;
       case "jtbd":
-        return <TextSection text={ini.jtbd} placeholder="Jobs To Be Done not generated yet." />;
+        return <EditableSection ini={ini} updateIni={updateIni} field="jtbd" label="Jobs To Be Done"
+          placeholder="Jobs To Be Done not generated yet."
+          renderView={t => <TextSection text={t} placeholder="" />} />;
       case "usecases":
-        return <TextSection text={ini.usecases} placeholder="Use Cases not generated yet." />;
+        return <EditableSection ini={ini} updateIni={updateIni} field="usecases" label="Use Cases"
+          placeholder="Use Cases not generated yet."
+          renderView={t => <TextSection text={t} placeholder="" />} />;
       case "epics":
-        return <TextSection text={ini.epics} placeholder="Epics & Stories not generated yet." />;
+        return <EditableEpics ini={ini} updateIni={updateIni} />;
       case "risks":
-        return <RiskCards text={ini.riskReg} />;
+        return <EditableSection ini={ini} updateIni={updateIni} field="riskReg" label="Risk Register (ROAM)"
+          placeholder="Risk Register not generated yet."
+          renderView={t => <RiskCards text={t} />} />;
       case "pi":
         return <PITab ini={ini} updateIni={updateIni} />;
       case "prd":
@@ -976,12 +1479,15 @@ export function Handoff({ setView }) {
             {HANDOFF_SECTIONS.map(s => {
               const sectionData = {
                 overview: true,
+                prd: !!ini.prd,
                 personas: !!ini.personas,
                 journey: !!ini.currentJourney || !!ini.futureJourney,
                 jtbd: !!ini.jtbd,
                 usecases: !!ini.usecases,
                 epics: !!ini.epics,
                 risks: !!ini.riskReg,
+                telemetry: !!ini.telemetry,
+                testcases: !!ini.testcases,
                 pi: !!ini.piPlanning || !!ini.engSpend?.sprints,
                 gonogo: true,
               };
@@ -1135,31 +1641,189 @@ function extractPts(line) {
 }
 
 
+// ─── Sprints · Stage 6 ──────────────────────────────────────────
+const DEFAULT_LABELS = [
+  { id:"bug",     name:"Bug",        color:"#E74C3C" },
+  { id:"feature", name:"Feature",    color:"#2E6DA4" },
+  { id:"tech",    name:"Tech Debt",  color:"#9B59B6" },
+  { id:"spike",   name:"Spike",      color:"#E8913A" },
+  { id:"p0",      name:"P0",         color:"#E74C3C" },
+  { id:"p1",      name:"P1",         color:"#E8913A" },
+  { id:"p2",      name:"P2",         color:"#2ECC71" },
+  { id:"blocked", name:"Blocked",    color:"#FF0000" },
+];
+
+function StoryCard({ story, sprintId, dragStory, setDragStory, moveStory, details, onUpdateDetail }) {
+  const [expanded, setExpanded] = useState(false);
+  const d = details[story.id] || {};
+  const ac   = d.ac   || "";
+  const note = d.note || "";
+  const storyLabels = d.labels || [];
+  const [newLabelName, setNewLabelName] = useState("");
+  const [showLabelInput, setShowLabelInput] = useState(false);
+
+  const allLabels = [
+    ...DEFAULT_LABELS,
+    ...(d.customLabels || []),
+  ];
+
+  const toggleLabel = (labelId) => {
+    const next = storyLabels.includes(labelId)
+      ? storyLabels.filter(l => l !== labelId)
+      : [...storyLabels, labelId];
+    onUpdateDetail(story.id, { ...d, labels: next });
+  };
+
+  const addCustomLabel = () => {
+    if (!newLabelName.trim()) return;
+    const id = "custom_" + Date.now();
+    const custom = { id, name: newLabelName.trim(), color: T.ice };
+    const customLabels = [...(d.customLabels || []), custom];
+    const labels = [...storyLabels, id];
+    onUpdateDetail(story.id, { ...d, customLabels, labels });
+    setNewLabelName("");
+    setShowLabelInput(false);
+  };
+
+  const appliedLabels = allLabels.filter(l => storyLabels.includes(l.id));
+
+  return (
+    <div
+      style={{
+        background: T.ink, border: `1px solid ${expanded ? T.gold : T.border}`,
+        borderRadius: 6, marginBottom: 6,
+        opacity: dragStory?.story.id === story.id ? 0.4 : 1,
+      }}
+    >
+      {/* Card header — drag handle + expand */}
+      <div
+        draggable
+        onDragStart={() => setDragStory({ story, fromSprint: sprintId })}
+        onDragEnd={() => setDragStory(null)}
+        onClick={() => setExpanded(p => !p)}
+        style={{ padding: "8px 10px", cursor: "grab", display: "flex", alignItems: "flex-start", gap: 8 }}
+      >
+        <span style={{ color: T.muted, fontSize: 10, marginTop: 2, flexShrink: 0 }}>⠿</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: T.loud, fontSize: 12, lineHeight: 1.4 }}>{story.label}</div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 3 }}>
+            {story.epic && <span style={{ fontSize: 9, color: T.gold, fontWeight: 700 }}>{story.epic}</span>}
+            <span style={{ fontSize: 9, color: T.muted }}>{story.ini}</span>
+            {story.points && <span style={{ fontSize: 9, color: T.steel, fontWeight: 700 }}>{story.points}pts</span>}
+            {appliedLabels.map(l => (
+              <span key={l.id} style={{ fontSize: 9, fontWeight: 700, color: l.color, background: l.color + "22", borderRadius: 3, padding: "1px 5px" }}>{l.name}</span>
+            ))}
+          </div>
+        </div>
+        <span style={{ fontSize: 10, color: T.muted, flexShrink: 0, marginTop: 1 }}>{expanded ? "▲" : "▼"}</span>
+      </div>
+
+      {/* Expanded detail panel */}
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${T.border}`, padding: "10px 10px 12px" }} onClick={e => e.stopPropagation()}>
+          {/* Labels */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Labels</div>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+              {allLabels.map(l => (
+                <button key={l.id}
+                  onClick={() => toggleLabel(l.id)}
+                  style={{
+                    fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, cursor: "pointer",
+                    border: `1px solid ${l.color}`,
+                    background: storyLabels.includes(l.id) ? l.color : "transparent",
+                    color: storyLabels.includes(l.id) ? T.ink : l.color,
+                  }}
+                >{l.name}</button>
+              ))}
+              {showLabelInput ? (
+                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input
+                    autoFocus
+                    value={newLabelName}
+                    onChange={e => setNewLabelName(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addCustomLabel(); if (e.key === "Escape") setShowLabelInput(false); }}
+                    placeholder="Label name"
+                    style={{ ...css.input, width: 100, fontSize: 10, padding: "2px 6px" }}
+                  />
+                  <button onClick={addCustomLabel} style={{ ...css.btnGold, fontSize: 9, padding: "2px 8px" }}>Add</button>
+                  <button onClick={() => setShowLabelInput(false)} style={{ ...css.btnGhost, fontSize: 9, padding: "2px 6px" }}>✕</button>
+                </div>
+              ) : (
+                <button onClick={() => setShowLabelInput(true)} style={{ ...css.btnGhost, fontSize: 9, padding: "2px 8px" }}>+ Custom</button>
+              )}
+            </div>
+          </div>
+
+          {/* Acceptance Criteria */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Acceptance Criteria</div>
+            <textarea
+              value={ac}
+              onChange={e => onUpdateDetail(story.id, { ...d, ac: e.target.value })}
+              placeholder={"Given...\nWhen...\nThen..."}
+              rows={4}
+              style={{ ...css.ta, fontSize: 11, width: "100%", boxSizing: "border-box", resize: "vertical" }}
+            />
+          </div>
+
+          {/* Notes */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Notes</div>
+            <textarea
+              value={note}
+              onChange={e => onUpdateDetail(story.id, { ...d, note: e.target.value })}
+              placeholder="Dev notes, blockers, links..."
+              rows={2}
+              style={{ ...css.ta, fontSize: 11, width: "100%", boxSizing: "border-box", resize: "vertical" }}
+            />
+          </div>
+
+          {/* Move to sprint */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span style={{ fontSize: 9, color: T.muted }}>Move to:</span>
+            <select
+              defaultValue={sprintId}
+              onChange={e => moveStory(story, e.target.value)}
+              style={{ ...css.input, fontSize: 10, padding: "3px 6px", width: "auto" }}
+            >
+              <option value="backlog">Backlog</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SprintGoals({ setView }) {
   const { initiatives, updateIni } = useApp();
-  const [dragStory, setDragStory] = useState(null); // { story, fromSprint }
+  const [dragStory, setDragStory] = useState(null);
   const [sprints, setSprints] = useState(() => [
-    { id: "backlog", label: "Backlog", startDate: "", endDate: "", color: T.muted, goal: "" },
-    { id: "s1", label: "Sprint 1", startDate: "", endDate: "", color: T.steel, goal: "" },
-    { id: "s2", label: "Sprint 2", startDate: "", endDate: "", color: T.gold, goal: "" },
-    { id: "s3", label: "Sprint 3", startDate: "", endDate: "", color: T.green, goal: "" },
+    { id: "backlog", label: "Backlog",  startDate: "", endDate: "", color: T.muted,  goal: "" },
+    { id: "s1",      label: "Sprint 1", startDate: "", endDate: "", color: T.steel,  goal: "" },
+    { id: "s2",      label: "Sprint 2", startDate: "", endDate: "", color: T.gold,   goal: "" },
+    { id: "s3",      label: "Sprint 3", startDate: "", endDate: "", color: T.green,  goal: "" },
   ]);
 
-  // Load sprint assignments from initiatives
+  // Load sprint assignments across all initiatives
   const [assignments, setAssignments] = useState(() => {
     const all = {};
     initiatives.forEach(ini => {
-      if (ini.sprint_assignments) {
-        try {
-          const parsed = JSON.parse(ini.sprint_assignments);
-          Object.assign(all, parsed);
-        } catch(e) {}
-      }
+      try { Object.assign(all, JSON.parse(ini.sprint_assignments || "{}")); } catch(e) {}
     });
-    return all; // { storyId: sprintId }
+    return all;
   });
 
-  // All stories across all initiatives
+  // story_details: { [storyId]: { ac, note, labels, customLabels } }
+  const [details, setDetails] = useState(() => {
+    const all = {};
+    initiatives.forEach(ini => {
+      try { Object.assign(all, JSON.parse(ini.story_details || "{}")); } catch(e) {}
+    });
+    return all;
+  });
+
   const allStories = initiatives.flatMap(ini =>
     parseStories(ini.epics, ini.title, ini.slug)
   );
@@ -1170,14 +1834,24 @@ export function SprintGoals({ setView }) {
   const moveStory = (story, toSprintId) => {
     const newAssignments = { ...assignments, [story.id]: toSprintId };
     setAssignments(newAssignments);
-    // Persist per initiative
     const ini = initiatives.find(i => story.ini === i.title);
     if (ini) {
-      // Merge with existing assignments
       let existing = {};
       try { existing = JSON.parse(ini.sprint_assignments || "{}"); } catch(e) {}
-      const merged = { ...existing, [story.id]: toSprintId };
-      updateIni(ini.id, d => ({ ...d, sprint_assignments: JSON.stringify(merged) }));
+      updateIni(ini.id, d => ({ ...d, sprint_assignments: JSON.stringify({ ...existing, [story.id]: toSprintId }) }));
+    }
+  };
+
+  const onUpdateDetail = (storyId, newDetail) => {
+    const next = { ...details, [storyId]: newDetail };
+    setDetails(next);
+    // Find which ini owns this story and persist
+    const story = allStories.find(s => s.id === storyId);
+    const ini   = initiatives.find(i => i.title === story?.ini);
+    if (ini) {
+      let existing = {};
+      try { existing = JSON.parse(ini.story_details || "{}"); } catch(e) {}
+      updateIni(ini.id, d => ({ ...d, story_details: JSON.stringify({ ...existing, [storyId]: newDetail }) }));
     }
   };
 
@@ -1190,34 +1864,16 @@ export function SprintGoals({ setView }) {
   const updateSprint = (id, key, val) =>
     setSprints(prev => prev.map(s => s.id === id ? { ...s, [key]: val } : s));
 
-  const storyCard = (story, sprintId) => (
-    <div key={story.id}
-      draggable
-      onDragStart={() => setDragStory({ story, fromSprint: sprintId })}
-      onDragEnd={() => setDragStory(null)}
-      style={{
-        background: T.ink, border: `1px solid ${T.border}`, borderRadius: 6,
-        padding: "8px 10px", marginBottom: 6, cursor: "grab",
-        opacity: dragStory?.story.id === story.id ? 0.4 : 1,
-        fontSize: 12, lineHeight: 1.5,
-      }}>
-      <div style={{ fontWeight: 700, color: T.loud, marginBottom: 2 }}>{story.label}</div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {story.epic && <span style={{ fontSize: 10, color: T.gold, fontWeight: 700 }}>{story.epic}</span>}
-        <span style={{ fontSize: 10, color: T.muted }}>{story.ini}</span>
-        {story.points && <span style={{ fontSize: 10, color: T.steel, fontWeight: 700 }}>{story.points}pts</span>}
-      </div>
-    </div>
-  );
-
   const sprintCol = (sprint) => {
     const stories = getStoriesForSprint(sprint.id);
     const totalPts = stories.reduce((s, st) => s + (st.points || 0), 0);
+    // Build sprint options for move-to dropdown inside cards
     return (
       <div key={sprint.id}
         onDragOver={e => e.preventDefault()}
         onDrop={() => { if (dragStory) moveStory(dragStory.story, sprint.id); }}
-        style={{ flex: "0 0 260px", background: T.ink2, border: `1px solid ${sprint.id === "backlog" ? T.border : sprint.color}40`, borderTop: `3px solid ${sprint.color}`, borderRadius: 8, padding: 12, minHeight: 300 }}>
+        style={{ flex: "0 0 280px", background: T.ink2, border: `1px solid ${sprint.id === "backlog" ? T.border : sprint.color}40`, borderTop: `3px solid ${sprint.color}`, borderRadius: 8, padding: 12, minHeight: 300 }}
+      >
         <div style={{ marginBottom: 10 }}>
           {sprint.id === "backlog" ? (
             <div style={{ fontWeight: 800, fontSize: 13, color: T.muted }}>BACKLOG</div>
@@ -1237,20 +1893,28 @@ export function SprintGoals({ setView }) {
           {sprint.id !== "backlog" && (
             <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: sprint.color, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>Sprint Goal</div>
-              <textarea
-                value={sprint.goal}
-                onChange={e => updateSprint(sprint.id, "goal", e.target.value)}
+              <textarea value={sprint.goal} onChange={e => updateSprint(sprint.id, "goal", e.target.value)}
                 placeholder="What does the team commit to delivering this sprint?"
                 rows={2}
-                style={{ ...css.ta, fontSize: 11, resize: "none", width: "100%", boxSizing: "border-box", borderColor: `${sprint.color}40`, lineHeight: 1.5 }}
-              />
+                style={{ ...css.ta, fontSize: 11, resize: "none", width: "100%", boxSizing: "border-box", borderColor: `${sprint.color}40`, lineHeight: 1.5 }} />
             </div>
           )}
           <div style={{ fontSize: 10, color: T.muted, marginTop: 6 }}>
             {stories.length} stories{totalPts > 0 ? ` · ${totalPts} pts` : ""}
           </div>
         </div>
-        {stories.map(s => storyCard(s, sprint.id))}
+        {stories.map(s => (
+          <StoryCard
+            key={s.id}
+            story={s}
+            sprintId={sprint.id}
+            dragStory={dragStory}
+            setDragStory={setDragStory}
+            moveStory={moveStory}
+            details={details}
+            onUpdateDetail={onUpdateDetail}
+          />
+        ))}
       </div>
     );
   };
@@ -1259,13 +1923,13 @@ export function SprintGoals({ setView }) {
 
   return (
     <div>
-      <div style={css.h2}>Sprint Goals · Stage 6</div>
-      <div style={css.sub}>Drag user stories from your initiatives into sprints. Set sprint dates and track capacity.</div>
+      <div style={css.h2}>Sprints · Stage 6</div>
+      <div style={css.sub}>Click a story to expand AC, labels, and notes. Drag to assign to sprints.</div>
 
       {!hasStories && (
         <div style={{ ...css.card, textAlign: "center", padding: 32, color: T.muted, marginBottom: 20 }}>
           <div style={{ marginBottom: 8 }}>No user stories found yet.</div>
-          <div style={{ fontSize: 12, marginBottom: 12 }}>Generate Epics & Stories in the Delivery Handoff stage first — stories will appear here automatically.</div>
+          <div style={{ fontSize: 12, marginBottom: 12 }}>Generate Epics & Stories in the Delivery Handoff stage first.</div>
           <button style={css.btnOut} onClick={() => setView("handoff")}>→ Go to Delivery Handoff</button>
         </div>
       )}
@@ -1275,14 +1939,6 @@ export function SprintGoals({ setView }) {
           {sprints.map(sprintCol)}
           <div style={{ flex: "0 0 48px", display: "flex", alignItems: "flex-start", paddingTop: 8 }}>
             <button onClick={addSprint} style={{ ...css.btnGhost, fontSize: 20, padding: "6px 12px", lineHeight: 1 }} title="Add sprint">+</button>
-          </div>
-        </div>
-      )}
-
-      {hasStories && (
-        <div style={{ ...css.card, marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: T.muted }}>
-            <strong style={{ color: T.loud }}>Tip:</strong> Drag stories between columns to assign them to sprints. Sprint dates and story assignments are saved automatically per initiative.
           </div>
         </div>
       )}
@@ -1649,7 +2305,7 @@ function ChattyBubble({ label, prompt, onSend, disabled }) {
   );
 }
 
-// ─── Chatty ───────────────────────────────────────────────────---
+// ─── Chatty ───────────────────────────────────────────────────
 export function Chatty({ currentView }) {
   const { foundation, initiatives, userName } = useApp();
   const [open, setOpen] = useState(false);

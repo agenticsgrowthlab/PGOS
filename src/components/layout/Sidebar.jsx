@@ -20,7 +20,7 @@ export function Sidebar({ view, setView }) {
     setCreatingOrg(true);
     setBootstrapStep("Creating workspace…");
     try {
-      // Step 1: create blank org row--
+      // Step 1: create blank org row
       const newOrg = await addOrg(name);
 
       // Step 2: call AI to research company
@@ -187,7 +187,7 @@ export function Sidebar({ view, setView }) {
 
         {sectionLabel("Deliver")}
         {navBtn("handoff",     "Stage 5 · Delivery Handoff")}
-        {navBtn("sprint_goals","Stage 6 · Sprint Goals")}
+        {navBtn("sprint_goals","Stage 6 · Sprints")}
 
         {sep("s3")}
 

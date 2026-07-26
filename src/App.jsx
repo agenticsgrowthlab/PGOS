@@ -152,7 +152,7 @@ function Inner() {
               ncm_framework: "NCM Framework",
               ideas: "New Ideas · Stage 1", discovery: "Product Discovery · Stage 2",
               portfolio: "Portfolio Review · Stage 3", roadmap: "Roadmap Planning · Stage 4",
-              handoff: "Delivery Handoff · Stage 5", sprint_goals: "Sprint Goals · Stage 6",
+              handoff: "Delivery Handoff · Stage 5", sprint_goals: "Sprints · Stage 6",
               gtm: "GTM Strategy · Stage 7", measure: "Campaign Launch · Stage 8",
               measure_data: "Measure · Stage 9", outcome: "Outcome Summary · Stage 10",
               lessons: "Lessons Learned · Stage 11",
