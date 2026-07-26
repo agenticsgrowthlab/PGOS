@@ -990,87 +990,86 @@ function parseStories(epicsText, iniTitle, iniSlug) {
   const lines = epicsText.split("\n");
   let currentEpic = "";
   let pendingStoryId = null;
+  let storyCounter = 0;
 
-  lines.forEach((line, idx) => {
-    const clean = line.replace(/\*\*/g, "").replace(/^\s*[-*>]+\s*/, "").trim();
+  lines.forEach((line) => {
+    // Strip markdown bold/italic, heading markers
+    const raw = line.replace(/\*\*/g, "").replace(/\*/g, "").replace(/^#+\s*/, "");
+    const clean = raw.replace(/^\s*[-\u2022>|]+\s*/, "").trim();
+    if (!clean) return;
 
-    // Epic detection
-    const epicMatch = clean.match(/^E-?(\d+)[:\s–-]+(.+)/i)
-      || clean.match(/^#+\s*E-?(\d+)[:\s]+(.+)/i)
-      || clean.match(/^Epic\s*(\d+)[:\s–-]+(.+)/i);
-    if (epicMatch) { currentEpic = `E-${epicMatch[1].padStart(2,"0")}`; return; }
+    // ── Epic detection ──────────────────────────────────────────
+    if (/^E-?\d+[:\s]/i.test(clean) || /^Epic\s*\d+[:\s]/i.test(clean)) {
+      const m = clean.match(/\d+/);
+      if (m) currentEpic = "E-" + m[0].padStart(2, "0");
+      return;
+    }
 
-    // "Story ID: US-XX" on its own line (AI often puts ID on one line, title on next)
-    const storyIdLine = clean.match(/^(?:Story\s*ID[:\s]+)?(US-\d+|S-\d+)(\s*[:\s–-]\s*(.+))?$/i);
-    if (storyIdLine) {
-      const id = storyIdLine[1].toUpperCase();
-      const titlePart = (storyIdLine[3] || "").trim();
-      pendingStoryId = id;
-      if (titlePart && titlePart.length > 3) {
-        stories.push({
-          id: `${iniSlug || "INI"}-${id}`,
-          label: titlePart.slice(0, 80),
-          epic: currentEpic,
-          ini: iniTitle,
-          points: (() => { const m = line.match(/(\d+)\s*(?:story\s*)?points?/i); return m ? parseInt(m[1]) : null; })(),
-        });
+    // ── "Story ID: US-XX" or "Story ID: XX" prefix line ────────
+    const storyIdPfx = clean.match(/^Story\s*(?:ID)?[:\s]+([A-Za-z]*-?\d+)/i);
+    if (storyIdPfx) {
+      let rawId = storyIdPfx[1].toUpperCase();
+      if (!rawId.startsWith("US-") && !rawId.startsWith("S-")) rawId = "US-" + rawId.replace(/\D/g, "");
+      pendingStoryId = rawId;
+      const afterId = clean.replace(/^Story\s*(?:ID)?[:\s]+[A-Za-z0-9-]+\s*[:\s\u2013-]?\s*/i, "").trim();
+      if (afterId.length > 3 && !/^(As a|Given|When|Then|Acceptance|Priority|Story Points)/i.test(afterId)) {
+        stories.push({ id: (iniSlug||"INI") + "-" + pendingStoryId, label: afterId.slice(0,80), epic: currentEpic, ini: iniTitle, points: extractPts(line) });
         pendingStoryId = null;
       }
       return;
     }
 
-    // Inline: "- US-01: Title text" or "**US-01** Title"
-    const inlineMatch = clean.match(/^(US-\d+|S-\d+)[:\s–-]+(.+)/i)
-      || clean.match(/^(?:Story\s*ID:\s*)?(US-\d+)[:\s–-]+(.+)/i);
-    if (inlineMatch) {
-      const id = inlineMatch[1].toUpperCase();
-      const label = (inlineMatch[2] || "").replace(/\*\*/g,"").trim().slice(0,80);
-      if (label.length > 2) {
-        stories.push({
-          id: `${iniSlug || "INI"}-${id}`,
-          label,
-          epic: currentEpic,
-          ini: iniTitle,
-          points: (() => { const m = line.match(/(\d+)\s*(?:story\s*)?points?/i); return m ? parseInt(m[1]) : null; })(),
-        });
+    // ── US-XX: label on same line ───────────────────────────────
+    const usInline = clean.match(/^(US-\d+|S-\d+)[:\s\u2013-]+(.{3,})/i)
+      || clean.match(/(US-\d+)[:\s\u2013-]+(.{3,})/i);
+    if (usInline) {
+      const id = usInline[1].toUpperCase();
+      const label = usInline[2].trim().slice(0, 80);
+      stories.push({ id: (iniSlug||"INI") + "-" + id, label, epic: currentEpic, ini: iniTitle, points: extractPts(line) });
+      pendingStoryId = null;
+      return;
+    }
+
+    // ── Standalone US-XX on its own ─────────────────────────────
+    if (/^(US-\d+|S-\d+)$/i.test(clean)) {
+      pendingStoryId = clean.toUpperCase();
+      return;
+    }
+
+    // ── "As a X, I want Y" user story sentence ──────────────────
+    if (/^As a /i.test(clean)) {
+      if (pendingStoryId) {
+        stories.push({ id: (iniSlug||"INI") + "-" + pendingStoryId, label: clean.slice(0,80), epic: currentEpic, ini: iniTitle, points: null });
         pendingStoryId = null;
+      } else {
+        storyCounter++;
+        const genId = "US-" + String(storyCounter).padStart(2, "0");
+        stories.push({ id: (iniSlug||"INI") + "-" + genId, label: clean.slice(0,80), epic: currentEpic, ini: iniTitle, points: null });
       }
       return;
     }
 
-    // "As a [user]..." line — use as label for pending story ID
-    const asAMatch = clean.match(/^As a (.+?),\s*I want (.+?)(?:[,.]\s*so that (.+))?$/i);
-    if (asAMatch && pendingStoryId) {
-      const label = clean.slice(0, 80);
-      stories.push({
-        id: `${iniSlug || "INI"}-${pendingStoryId}`,
-        label,
-        epic: currentEpic,
-        ini: iniTitle,
-        points: null,
-      });
-      pendingStoryId = null;
-      return;
-    }
-
-    // Bold-prefixed story: **US-01** — Title
-    const boldMatch = clean.match(/\*\*(US-\d+|S-\d+)\*\*[:\s–-]+(.+)/i);
-    if (boldMatch) {
-      stories.push({
-        id: `${iniSlug || "INI"}-${boldMatch[1].toUpperCase()}`,
-        label: boldMatch[2].trim().slice(0, 80),
-        epic: currentEpic,
-        ini: iniTitle,
-        points: null,
-      });
-      pendingStoryId = null;
+    // ── Attach story points to last story ───────────────────────
+    if (/^Story\s*Points?[:\s]/i.test(clean) && stories.length) {
+      const m = clean.match(/(\d+)/);
+      if (m) stories[stories.length - 1].points = parseInt(m[1]);
     }
   });
 
-  // Deduplicate by id
   const seen = new Set();
-  return stories.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+  return stories.filter(s => {
+    if (!s.label || s.label.length < 3) return false;
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
 }
+
+function extractPts(line) {
+  const m = line.match(/(\d+)\s*(?:story\s*)?points?/i) || line.match(/Points?[:\s]+(\d+)/i);
+  return m ? parseInt(m[1]) : null;
+}
+
 
 export function SprintGoals({ setView }) {
   const { initiatives, updateIni } = useApp();

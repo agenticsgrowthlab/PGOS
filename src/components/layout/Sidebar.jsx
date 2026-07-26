@@ -172,12 +172,12 @@ export function Sidebar({ view, setView }) {
 
         {sep("s0")}
 
-        {sectionLabel("Organizational Goals")}
+        {sectionLabel("Set Enterprise Goals")}
         {navBtn("foundation",    "Enterprise Foundation")}
 
         {sep("s1")}
 
-        {sectionLabel("Product Management")}
+        {sectionLabel("Define")}
         {navBtn("ideas",     "Stage 1 · New Ideas")}
         {navBtn("discovery", "Stage 2 · Product Discovery")}
         {navBtn("portfolio", "Stage 3 · Portfolio Review")}
@@ -185,7 +185,7 @@ export function Sidebar({ view, setView }) {
 
         {sep("s2")}
 
-        {sectionLabel("Development")}
+        {sectionLabel("Deliver")}
         {navBtn("handoff",     "Stage 5 · Delivery Handoff")}
         {navBtn("sprint_goals","Stage 6 · Sprint Goals")}
 
@@ -201,6 +201,19 @@ export function Sidebar({ view, setView }) {
         {navBtn("measure_data", "Stage 9 · Measure")}
         {navBtn("lessons",      "Stage 10 · Lessons Learned")}
         {navBtn("outcome",      "Stage 11 · Outcome Summary")}
+
+        {/* Repeat loop back to Ideas */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 16px 8px" }}>
+          <span style={{ fontSize: 14, color: T.gold }}>↺</span>
+          <button
+            onClick={() => setView("ideas")}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 11, color: T.gold, fontStyle: "italic",
+              fontWeight: 700, padding: 0, textAlign: "left",
+            }}
+          >Repeat → New Ideas</button>
+        </div>
 
         {sep("s5")}
 
