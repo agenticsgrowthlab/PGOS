@@ -124,6 +124,8 @@ export function normalizeInitiative(row) {
     roadmap_end:   row.roadmap_end   || null,
     bar_color:     row.bar_color     || null,
     jira_tickets:  row.jira_tickets  || null,
+    story_details: row.story_details  || null,
+    epics_history: row.epics_history  || null,
     // Linkage names (from JOIN)
     okrName: row.okr_name || "",
     themeName: row.theme_name || "",
@@ -148,6 +150,8 @@ export function denormalizeInitiative(ini) {
     okr_id: ini.okr_id ?? null,
     theme_id: ini.theme_id ?? null,
     capability_id: ini.capability_id ?? null,
+    contract_primary_metric: ini.contract_primary_metric ?? null,
+    contract_target: ini.contract_target ?? null,
     // PIVOT (flattened)
     pivot_p: ini.pivot?.p ?? 5,
     pivot_i: ini.pivot?.i ?? 5,
@@ -196,6 +200,8 @@ export function denormalizeInitiative(ini) {
     roadmap_end:   ini.roadmap_end   ?? null,
     bar_color:     ini.bar_color     ?? null,
     jira_tickets:  ini.jira_tickets  ?? null,
+    story_details: ini.story_details  ?? null,
+    epics_history: ini.epics_history  ?? null,
     // NOTE: approved/approved_by/approved_date intentionally excluded —
     // managed exclusively by the direct write in InitiativeDetail.jsx
   };
