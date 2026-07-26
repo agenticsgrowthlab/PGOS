@@ -174,29 +174,43 @@ export function Sidebar({ view, setView }) {
       {/* Nav */}
       <nav style={{ flex: 1, padding: "4px 0", overflow: "auto" }}>
 
-        {navBtn("dashboard", "Dashboard")}
-        {navBtn("foundation", "Foundation")}
+        {sectionLabel("Approved")}
+        {navBtn("ncm_framework", "NCM Framework")}
+        {navBtn("dashboard",     "Dashboard")}
+
+        {sep("s0")}
+
+        {sectionLabel("Organizational Goals")}
+        {navBtn("foundation",    "Enterprise Foundation")}
 
         {sep("s1")}
 
-        {/* Stage pipeline — compact */}
-        <div style={{ padding: "4px 16px 2px", fontSize: 9, fontWeight: 800, color: T.muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-          Pipeline Stages
-        </div>
-
-        {navBtn("ideas",      "Stage 1 · Ideas")}
-        {navBtn("discovery",  "Stage 2 · Discovery")}
-        {navBtn("execreview", "Stage 3 · Exec Review")}
-        {navBtn("portfolio",  "Stage 4 · Portfolio")}
-        {navBtn("definition",           "Stage 5 · Definition")}
-        {navBtn("investment_contract",  "Stage 5.5 · Delivery Readiness")}
-        {navBtn("delivery",             "Stage 6 · Delivery")}
-        {navBtn("handoff",    "Stage 7 · Handoff")}
-        {navBtn("gtm",        "Stage 8 · Go-To-Market")}
-        {navBtn("measure",    "Stage 9 · Measure")}
-        {navBtn("outcome",    "Stage 10 · Outcome Summary")}
+        {sectionLabel("Product Management")}
+        {navBtn("ideas",     "Stage 1 · New Ideas")}
+        {navBtn("discovery", "Stage 2 · Product Discovery")}
+        {navBtn("portfolio", "Stage 3 · Portfolio Review")}
+        {navBtn("roadmap",   "Stage 4 · Roadmap Planning")}
 
         {sep("s2")}
+
+        {sectionLabel("Development")}
+        {navBtn("handoff",     "Stage 5 · Delivery Handoff")}
+        {navBtn("sprint_goals","Stage 6 · Sprint Goals")}
+
+        {sep("s3")}
+
+        {sectionLabel("Go-To-Market")}
+        {navBtn("gtm",         "Stage 7 · GTM Strategy")}
+        {navBtn("measure",     "Stage 8 · Campaign Launch")}
+
+        {sep("s4")}
+
+        {sectionLabel("Measure & Learn")}
+        {navBtn("measure_data", "Stage 9 · Measure")}
+        {navBtn("outcome",      "Stage 10 · Outcome Summary")}
+        {navBtn("lessons",      "Stage 11 · Lessons Learned")}
+
+        {sep("s5")}
 
         {/* Chatty hint */}
         <div style={{ padding: "5px 16px", display: "flex", alignItems: "center", gap: 8 }}>
@@ -204,12 +218,12 @@ export function Sidebar({ view, setView }) {
           <span style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>Chatty — bottom right ↘</span>
         </div>
 
-        {sep("s3")}
+        {sep("s6")}
 
         {sectionLabel("References")}
-        {navBtn("ref_framework", "NCM PM Framework")}
-        {navBtn("ref_guide",     "How To Use PGI")}
-        {navBtn("ref_scores",    "Score Methodology")}
+        {navBtn("ref_guide",        "How To Use PGI")}
+        {navBtn("ref_scores",       "Score Methodology")}
+        {navBtn("thought_leadership","Thought Leadership")}
 
       </nav>
 
