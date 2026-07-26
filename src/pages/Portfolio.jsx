@@ -117,8 +117,8 @@ export function Portfolio({ setView }) {
       )}
 
       <div style={{ ...css.card, background: T.ink3, padding: "10px 16px", marginBottom: 0, borderRadius: "10px 10px 0 0" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px 70px", gap: 8, alignItems: "center" }}>
-          {["Initiative", "Business Value", "Time Criticality", "Risk Reduction", "Effort (Job Size)", "WSJF", "PIVOT", "Approved"].map(h => (
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px 90px 70px", gap: 8, alignItems: "center" }}>
+          {["Initiative", "Business Value", "Time Criticality", "Risk Reduction", "Effort (Job Size)", "WSJF", "PIVOT", "Approved $", "Approve"].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{h}</div>
           ))}
         </div>
@@ -138,7 +138,7 @@ export function Portfolio({ setView }) {
         const wc = wsjfColor(wsjf);
         return (
           <div key={ini.id} style={{ ...css.card, marginBottom: 4, borderRadius: idx === sorted.length - 1 ? "0 0 10px 10px" : "0", borderTop: "none", padding: "14px 16px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px 70px", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 80px 80px 90px 70px", gap: 8, alignItems: "center" }}>
               <div style={{ cursor: setView ? "pointer" : "default" }} onClick={() => setView && setView("initiative_" + ini.id)}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T.loud }}>{ini.title} {setView && <span style={{ color: T.muted, fontSize: 11 }}>→</span>}</div>
                 <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
@@ -163,6 +163,21 @@ export function Portfolio({ setView }) {
                 <Tag label={tier.label} color={tier.color} bg={tier.bg} />
               </div>
               <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>APPROVED $</div>
+                {ini.approved ? (
+                  <div style={{ fontSize: 13, fontWeight: 800, color: T.green }}>
+                    ${Number(ini.investment?.approved || ini.investment_requested || 0).toLocaleString()}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: T.muted }}>—</div>
+                )}
+                {ini.roadmap_start && (
+                  <div style={{ fontSize: 9, color: T.muted, marginTop: 2 }}>
+                    {new Date(ini.roadmap_start + "T00:00:00").toLocaleDateString("en-US",{month:"short",year:"numeric"})}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>APPROVE</div>
                 <input type="checkbox" checked={!!ini.approved}
                   onChange={e => {
@@ -180,6 +195,40 @@ export function Portfolio({ setView }) {
           </div>
         );
       })}
+
+      {/* Quarterly approved $ totals */}
+      {(() => {
+        const approvedWithDates = sorted.filter(i => i.approved && i.roadmap_start);
+        if (!approvedWithDates.length) return null;
+        const qMap = {};
+        approvedWithDates.forEach(ini => {
+          const d = new Date(ini.roadmap_start + "T00:00:00");
+          const q = `Q${Math.ceil((d.getMonth()+1)/3)} ${d.getFullYear()}`;
+          if (!qMap[q]) qMap[q] = { total: 0, items: 0 };
+          qMap[q].total += Number(ini.investment?.approved || ini.investment_requested || 0);
+          qMap[q].items++;
+        });
+        const quarters = Object.entries(qMap).sort(([a],[b]) => a < b ? -1 : 1);
+        return (
+          <div style={{ ...css.card, marginTop: 12, background: T.ink3 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Approved Investment by Quarter</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {quarters.map(([q, data]) => (
+                <div key={q} style={{ background: T.ink, border: `1px solid ${T.border}`, borderTop: `2px solid ${T.gold}`, borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 4 }}>{q}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: T.green }}>${(data.total/1000).toFixed(0)}K</div>
+                  <div style={{ fontSize: 10, color: T.muted }}>{data.items} initiative{data.items > 1 ? "s" : ""}</div>
+                </div>
+              ))}
+              <div style={{ background: T.ink, border: `1px solid ${T.border}`, borderTop: `2px solid ${T.green}`, borderRadius: 8, padding: "10px 16px", minWidth: 120 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, marginBottom: 4 }}>Total Pipeline</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: T.green }}>${(sorted.filter(i=>i.approved).reduce((a,i)=>a+Number(i.investment?.approved||i.investment_requested||0),0)/1000).toFixed(0)}K</div>
+                <div style={{ fontSize: 10, color: T.muted }}>{sorted.filter(i=>i.approved).length} approved</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ ...css.card, marginTop: 16 }}>
         <div style={{ fontSize: 12, color: T.muted }}>
@@ -373,25 +422,40 @@ function GanttTimeline({ initiatives, updateIni, roadmapLastSaved, saveRoadmapTi
 export function PIPlanning() {
   const { initiatives, foundation, updateIni, roadmapLastSaved, saveRoadmapTimestamp } = useApp();
   const [loading, setLoading] = useState(false);
-  const [piCards, setPiCards] = useState(null);
   const approved = initiatives.filter(i => i.approved);
+
+  const PI_SECTIONS = [
+    { key:"objectives",   title:"PI Objectives",            icon:"◎", color:T.gold   },
+    { key:"risks",        title:"Risks",                    icon:"⚠", color:T.red    },
+    { key:"roam",         title:"ROAM Status",              icon:"◈", color:T.amber  },
+    { key:"dependencies", title:"Cross-team Dependencies",  icon:"⊕", color:T.steel  },
+    { key:"capacity",     title:"Capacity & Load",          icon:"△", color:T.teal   },
+    { key:"confidence",   title:"Confidence Vote",          icon:"✓", color:T.green  },
+  ];
+
+  // Parse saved text back into cards
+  const textToCards = (text) => {
+    if (!text) return null;
+    const parts = text.split(/\n(?=\d+\)|\d+\.)/);
+    return PI_SECTIONS.map((sec, i) => ({ ...sec, content: parts[i] || "" }));
+  };
+
+  // Load from first approved initiative's saved pi_planning on mount
+  const savedText = approved[0]?.piPlanning || approved[0]?.pi_planning || null;
+  const [piCards, setPiCards] = useState(() => savedText ? textToCards(savedText) : null);
+
+  // Re-sync if org switches or saved text appears
+  useEffect(() => {
+    if (!piCards && savedText) setPiCards(textToCards(savedText));
+  }, [savedText]);
 
   const genPI = async () => {
     setLoading(true);
     const text = await callAI("pi_planning", { foundation, initiatives }).catch(() => "");
     if (text) {
-      const sections = [
-        { key:"objectives",   title:"PI Objectives",            icon:"◎", color:T.gold   },
-        { key:"risks",        title:"Risks",                    icon:"⚠", color:T.red    },
-        { key:"roam",         title:"ROAM Status",              icon:"◈", color:T.amber  },
-        { key:"dependencies", title:"Cross-team Dependencies",  icon:"⊕", color:T.steel  },
-        { key:"capacity",     title:"Capacity & Load",          icon:"△", color:T.teal   },
-        { key:"confidence",   title:"Confidence Vote",          icon:"✓", color:T.green  },
-      ];
-      const parts = text.split(/\n(?=\d+\)|\d+\.)/);
-      const cards = sections.map((sec, i) => ({ ...sec, content: parts[i] || "" }));
+      const cards = textToCards(text);
       setPiCards(cards);
-      approved.forEach(ini => updateIni(ini.id, d => ({ ...d, piPlanning: text })));
+      approved.forEach(ini => updateIni(ini.id, d => ({ ...d, piPlanning: text, pi_planning: text })));
     }
     setLoading(false);
   };
@@ -1599,7 +1663,7 @@ export function Chatty({ currentView }) {
     : currentView;
   const bubbles = PAGE_BUBBLES[pageKey] || PAGE_BUBBLES.dashboard;
 
-  // Set greeting when Chatty opens for first time--
+  // Set greeting when Chatty opens for first time
   useEffect(() => {
     if (open && msgs.length === 0) {
       setMsgs([{

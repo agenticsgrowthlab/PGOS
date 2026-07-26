@@ -299,14 +299,50 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
           <div style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{ini.contract_primary_metric || "—"}</div>
         </div>
         <div>
-          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Target</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>{ini.contract_target || "—"}</div>
+          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Roadmap Start</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.steel }}>
+            {ini.roadmap_start ? new Date(ini.roadmap_start + "T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Roadmap End</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.steel }}>
+            {ini.roadmap_end ? new Date(ini.roadmap_end + "T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}
+          </div>
         </div>
         <div>
           <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Investment</div>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>${((ini.investment_approved || ini.investment_requested || 0)).toLocaleString()}</div>
         </div>
-        {saved && <div style={{ marginLeft: "auto", fontSize: 11, color: "#22c55e", fontWeight: 700 }}>✓ Saved</div>}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {ini.roadmap_end && (
+            <button
+              style={{ ...css.btnOut, fontSize: 11 }}
+              title="Pre-populate launch calendar with milestones based on roadmap dates"
+              onClick={() => {
+                if (!ini.roadmap_start || !ini.roadmap_end) return;
+                const start = new Date(ini.roadmap_start + "T00:00:00");
+                const end   = new Date(ini.roadmap_end   + "T00:00:00");
+                const fmt = d => d.toISOString().slice(0,10);
+                const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
+                const mid = new Date((start.getTime()+end.getTime())/2);
+                const syncedTasks = [
+                  { id: "sync-1", type:"milestone", title:"Development Complete", date: fmt(addDays(end,-14)), owner:"Engineering" },
+                  { id: "sync-2", type:"milestone", title:"Beta / UAT Launch",    date: fmt(addDays(end,-7)),  owner:"QA" },
+                  { id: "sync-3", type:"campaign",  title:"GTM Campaign Kick-off",date: fmt(addDays(end,-21)), owner:"Marketing" },
+                  { id: "sync-4", type:"event",     title:"General Availability", date: fmt(end),              owner:"Product" },
+                  { id: "sync-5", type:"task",      title:"Press Release",        date: fmt(addDays(end,-2)),  owner:"Marketing" },
+                  { id: "sync-6", type:"task",      title:"Sales Enablement",     date: fmt(mid),              owner:"Sales" },
+                ];
+                const merged = [...(calTasks||[]).filter(t => !t.id?.startsWith("sync-")), ...syncedTasks];
+                saveCalendar(merged);
+              }}
+            >
+              ↺ Sync Dates from Roadmap
+            </button>
+          )}
+          {saved && <div style={{ fontSize: 11, color: "#22c55e", fontWeight: 700 }}>✓ Saved</div>}
+        </div>
       </div>
 
       {/* AI Generate All */}
