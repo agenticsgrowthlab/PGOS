@@ -202,58 +202,21 @@ Value Prop: ${ini.gtm_value_prop || ""}
 Channel Strategy: ${ini.gtm_channel_strategy || ""}
 `.trim();
 
-    const prompts = {
-      full: `You are a senior GTM strategist. Using everything known about this initiative, generate a complete GTM package.
-
-${context}
-
-Return ONLY a JSON object with these exact keys:
-{
-  "icp": "Ideal Customer Profile — specific job title, company size, industry, pain point, buying trigger",
-  "positioning": "Single positioning statement: For [ICP] who [pain], [product] is the [category] that [key benefit] unlike [alternatives]",
-  "value_prop": "3-5 bullet value propositions tied to the target business metric",
-  "channel_strategy": "Primary and secondary channels with rationale — where does this ICP actually buy?",
-  "launch_plan": "Phased launch plan: soft launch, GA, scale. Include sequencing logic.",
-  "success_criteria": "3-5 measurable launch success criteria with specific numbers tied to the contract metric",
-  "campaign_intel": "Top 3 campaign recommendations most likely to move the target business metric. For each: campaign name, hypothesis, channel, message, CTA, and why this works for this ICP."
-}`,
-
-      calendar: `You are a GTM launch planner. Generate a realistic launch calendar for this initiative.
-
-${context}
-
-Return ONLY a JSON array of task objects. Generate 12-18 tasks spanning 90 days before and 30 days after launch.
-Each task: { "id": "unique string", "date": "YYYY-MM-DD", "title": "task name", "owner": "role", "type": "task|campaign|milestone|event" }
-
-Include: pre-launch prep, internal enablement, soft launch, campaign activations, PR/comms, GA milestone, post-launch review.
-Assume launch date is approximately 60 days from today (${new Date().toISOString().slice(0, 10)}).`,
-
-      social: `You are a B2B content strategist. Write launch content for this initiative.
-
-${context}
-
-Return ONLY a JSON object with these exact keys:
-{
-  "LinkedIn": "Professional announcement post (150-200 words). Lead with the business problem solved, not product features. Include a hook, 2-3 key benefits, CTA.",
-  "Twitter/X": "Thread-style announcement (3-4 tweets, separated by \\n\\n). Punchy, specific, metrics where possible.",
-  "Email": "Launch announcement email. Subject line on first line starting 'Subject: '. Then body (200-250 words). Problem-led, value-focused, single CTA.",
-  "Blog": "Blog post outline: headline, 4-5 section headers with 1-sentence summaries each. SEO-friendly.",
-  "Press Release": "Short press release (150 words). Headline, dateline, lede paragraph, quote from PM/leadership, boilerplate."
-}`
-    };
+    const actionMap = { full: "gtm_full", calendar: "gtm_calendar", social: "gtm_social" };
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 2000,
-          messages: [{ role: "user", content: prompts[section] }],
+          action: actionMap[section],
+          payload: { ini, foundation: {} },
         }),
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text || "";
+      // ai.js returns { text } for standard actions
+      const text = data.text || "";
+      if (!text) throw new Error(data.error || "Empty response from AI");
       const clean = text.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
 

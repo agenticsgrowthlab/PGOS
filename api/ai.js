@@ -342,6 +342,75 @@ Tone: Executive-ready. Confident but honest. 400-500 words.`;
       break;
     }
 
+    case "gtm_full": {
+      const ini = payload.ini || {};
+      const foundation = payload.foundation || {};
+      userContent = `You are a senior GTM strategist. Using everything known about this initiative, generate a complete GTM package. Return ONLY valid JSON with no markdown fences.
+
+Company: ${foundation.name || ""}
+Mission: ${foundation.mission || ""}
+Strategy: ${(foundation.okrs || []).map(o => o.objective).join("; ")}
+Competitors: ${(foundation.competitors || []).map(c => c.name).join(", ")}
+
+Initiative: ${ini.title}
+Problem: ${ini.problem || ""}
+Opportunity: ${ini.opportunity || ""}
+Personas: ${(ini.personas || "").substring(0, 400)}
+Investment: $${Number(ini.investment_approved || ini.investment_requested || 0).toLocaleString()}
+Contract Metric: ${ini.contract_primary_metric || ""}, Target: ${ini.contract_target || ""}
+Economic Outcome: ${(ini.contract_economic_outcome || "").substring(0, 200)}
+Exec Brief: ${(ini.exec_brief || "").substring(0, 300)}
+
+Return a JSON object with exactly these keys:
+{
+  "icp": "Ideal Customer Profile — specific job title, company size, industry, pain point, buying trigger",
+  "positioning": "For [ICP] who [pain], [product] is the [category] that [key benefit] unlike [alternatives]",
+  "value_prop": "3-5 value propositions as bullet points tied to the target business metric",
+  "channel_strategy": "Primary and secondary channels with rationale",
+  "launch_plan": "Phased launch: soft launch, GA, scale — include sequencing logic",
+  "success_criteria": "3-5 measurable launch success criteria with specific numbers",
+  "campaign_intel": "Top 3 campaign recommendations most likely to move the target metric. Each: name, hypothesis, channel, message, CTA, why it works"
+}`;
+      break;
+    }
+
+    case "gtm_calendar": {
+      const ini = payload.ini || {};
+      const today = new Date().toISOString().slice(0, 10);
+      userContent = `You are a GTM launch planner. Generate a realistic 120-day launch calendar. Return ONLY a valid JSON array, no markdown fences.
+
+Initiative: ${ini.title}
+Channel Strategy: ${(ini.gtm_channel_strategy || "").substring(0, 300)}
+Launch Plan: ${(ini.gtm_launch_plan || "").substring(0, 300)}
+Today: ${today}
+
+Return a JSON array of 14-18 task objects. Assume launch = 60 days from today.
+Each object: { "id": "unique_string", "date": "YYYY-MM-DD", "title": "task name", "owner": "role", "type": "task|campaign|milestone|event" }
+Include: pre-launch prep, internal enablement, soft launch, campaign activations, PR/comms, GA milestone, post-launch 30-day review.`;
+      break;
+    }
+
+    case "gtm_social": {
+      const ini = payload.ini || {};
+      userContent = `You are a B2B content strategist. Write launch content for this initiative. Return ONLY a valid JSON object, no markdown fences.
+
+Initiative: ${ini.title}
+ICP: ${ini.gtm_icp || ""}
+Positioning: ${ini.gtm_positioning || ""}
+Value Props: ${(ini.gtm_value_prop || "").substring(0, 300)}
+Campaign Intel: ${(ini.gtm_campaign_intel || "").substring(0, 300)}
+
+Return a JSON object with exactly these keys:
+{
+  "LinkedIn": "Professional announcement (150-200 words). Lead with business problem, not features. Hook, 2-3 benefits, CTA.",
+  "Twitter/X": "3-4 tweet thread separated by \n\n. Punchy, specific, use metrics.",
+  "Email": "Launch email. First line: Subject: [subject line]. Then body 200-250 words. Problem-led, single CTA.",
+  "Blog": "Blog outline: headline then 4-5 section headers with one-sentence summaries.",
+  "Press Release": "150-word press release. Headline, dateline, lede, PM quote, boilerplate."
+}`;
+      break;
+    }
+
     default:
       userContent = question || payload.prompt || "";
   }
@@ -365,6 +434,7 @@ const TOKEN_MAP = {
   future_journey: 900, jtbd: 1100, use_cases: 1100, epics: 1400,
   risk_register: 900, pi_planning: 1200, handoff: 1500,
   portfolio_analysis: 700, chatty: 700,
+  gtm_full: 2000, gtm_calendar: 1500, gtm_social: 2000,
   investment_contract: 1200,
   bootstrap_company: 8000,
 };
