@@ -1553,6 +1553,54 @@ const STAGE_META = {
 
 // ─── Stage List View ──────────────────────────────────────────
 // ─── Sprint Goals · Stage 6 ────────────────────────────────────
+// ─── Extract Given/When/Then AC from epics text per story ──────
+function extractStoryAC(epicsText) {
+  // Returns { [rawStoryId]: acText } — keyed by bare US-XX id (no slug prefix)
+  if (!epicsText) return {};
+  const result = {};
+  const lines = epicsText.split("\n");
+  let currentStoryId = null;
+  let acLines = [];
+
+  const flush = () => {
+    if (currentStoryId && acLines.length) {
+      result[currentStoryId] = acLines.join("\n").trim();
+    }
+    currentStoryId = null;
+    acLines = [];
+  };
+
+  lines.forEach(line => {
+    const clean = line.replace(/\*\*/g, "").replace(/\*/g, "").replace(/^#+\s*/, "").trim();
+    if (!clean) return;
+
+    // Epic line — reset story context
+    if (/^E-?\d+[:\s]/i.test(clean) || /^Epic\s*\d+[:\s]/i.test(clean)) {
+      flush();
+      return;
+    }
+
+    // Story line — start new story context
+    const usMatch = clean.match(/^(US-\d+|S-\d+)[:\s–-]+/i)
+      || clean.match(/^Story\s*(?:ID)?[:\s]+(US-\d+|S-\d+)/i);
+    if (usMatch) {
+      flush();
+      const rawId = (usMatch[1] || usMatch[0]).toUpperCase().replace(/.*?(US-\d+|S-\d+).*/i, "$1").trim();
+      currentStoryId = rawId;
+      return;
+    }
+
+    // AC lines — Given/When/Then/Acceptance Criteria
+    if (currentStoryId) {
+      if (/^(Given|When|Then|And|But|Acceptance Criteria|AC:|- )/i.test(clean)) {
+        acLines.push(clean);
+      }
+    }
+  });
+  flush();
+  return result;
+}
+
 // ─── Parse user stories from epics text ───────────────────────
 function parseStories(epicsText, iniTitle, iniSlug) {
   if (!epicsText) return [];
@@ -1820,6 +1868,24 @@ export function SprintGoals({ setView }) {
     const all = {};
     initiatives.forEach(ini => {
       try { Object.assign(all, JSON.parse(ini.story_details || "{}")); } catch(e) {}
+    });
+    // Pre-populate AC from epics text for any story that has no detail yet
+    initiatives.forEach(ini => {
+      const acMap = extractStoryAC(ini.epics || "");
+      const stories = parseStories(ini.epics, ini.title, ini.slug);
+      stories.forEach(story => {
+        if (!all[story.id]) {
+          // Extract bare US-XX from compound id (e.g. "SLUG-US-01" → "US-01")
+          const bareId = story.id.replace(/^.*?-(US-\d+|S-\d+)$/i, "$1").toUpperCase();
+          const ac = acMap[bareId] || "";
+          if (ac) all[story.id] = { ac, note: "", labels: [], customLabels: [] };
+        } else if (!all[story.id].ac) {
+          // Story exists in details but AC is empty — fill from epics
+          const bareId = story.id.replace(/^.*?-(US-\d+|S-\d+)$/i, "$1").toUpperCase();
+          const ac = acMap[bareId] || "";
+          if (ac) all[story.id] = { ...all[story.id], ac };
+        }
+      });
     });
     return all;
   });
