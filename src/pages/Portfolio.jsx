@@ -4,7 +4,7 @@ import { AIBox, Tag } from "../components/ui";
 import { useApp } from "../contexts/AppContext";
 import { callAI } from "../lib/api";
 
-// ─── Portfolio ────────────────────────────────────────────────
+// ─── Portfolio ────────────────────────────────────────────────----
 export function Portfolio({ setView }) {
   const { initiatives, foundation, updateIni, roadmapLastSaved, saveRoadmapTimestamp } = useApp();
   const [aiSummary, setAiSummary] = useState("");
