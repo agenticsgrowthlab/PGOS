@@ -10,6 +10,7 @@ import { Portfolio, PIPlanning, Handoff, StageList, Chatty, SprintGoals, Lessons
 import Measure from "./pages/Measure";
 import OutcomeSummary from "./pages/OutcomeSummary";
 import GTM from "./pages/GTM";
+import CampaignLaunch from "./pages/CampaignLaunch";
 import { RefFramework, RefGuide, ScoreMath } from "./pages/References";
 import { T, css, stageLabel, stageColor } from "./lib/tokens";
 
@@ -23,8 +24,13 @@ function DownloadPPTBtn({ page, label, gold }) {
     ideas: "ideas", discovery: "discovery", execreview: "execreview",
     portfolio: "portfolio", definition: "definition",
     investment_contract: "investment_contract",
-    delivery: "delivery", handoff: "handoff",
+    roadmap: "roadmap", delivery: "delivery", handoff: "handoff",
+    sprint_goals: "sprint_goals",
+    gtm: "gtm", campaign_launch: "campaign_launch",
+    measure: "measure", measure_data: "measure_data",
+    outcome: "outcome", lessons: null,
     ref_framework: null, ref_guide: null, chatty_note: null,
+    thought_leadership: null, ncm_framework: null,
     leadership: "leadership",
   };
 
@@ -104,6 +110,7 @@ function Inner() {
     if (view === "handoff")           return <Handoff />;
     if (view === "sprint_goals")      return <SprintGoals setView={setView} />;
     if (view === "gtm")               return <GTM />;
+    if (view === "campaign_launch")   return <CampaignLaunch />;
     if (view === "measure")           return <Measure />;
     if (view === "measure_data")      return <Measure />;
     if (view === "outcome")           return <OutcomeSummary />;

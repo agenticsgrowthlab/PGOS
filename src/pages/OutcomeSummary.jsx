@@ -1,4 +1,4 @@
-// src/pages/OutcomeSummary.jsx — Stage 9: Outcome Summary
+// src/pages/OutcomeSummary.jsx — Stage 11: Outcome Summary
 // Executive narrative, OKR linkage, PIVOT predicted vs actual, lessons learned, next action
 
 import { useState, useEffect, useCallback } from "react";
@@ -150,8 +150,8 @@ export default function OutcomeSummary() {
 
   return (
     <div style={css.page}>
-      <div style={css.h2}>Stage 9 — Outcome Summary</div>
-      <div style={css.sub}>The full story — from idea to outcome. Did we win? What did we learn? What's next?</div>
+      <div style={css.h2}>Outcome Summary · Stage 11</div>
+      <div style={css.sub}>The full story — from idea to outcome. Includes lessons learned from the retrospective.</div>
 
       {/* Initiative Selector */}
       <div style={css.card}>
@@ -265,9 +265,16 @@ export default function OutcomeSummary() {
                 <div style={css.secHead}>◆ Executive Outcome Narrative</div>
                 <button style={css.btnGhost} onClick={runAI} disabled={aiLoading}>↻ Regenerate</button>
               </div>
-              <pre style={{ color: T.loud, fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap", margin: 0 }}>
-                {aiNarrative || ini.outcome_summary}
-              </pre>
+              <div style={{ color: T.loud, fontSize: 13, lineHeight: 1.8 }}>
+                {(aiNarrative || ini.outcome_summary || "").split("\n").map((line, i) => {
+                  const clean = line.replace(/\*\*(.*?)\*\*/g, "$1").trim();
+                  if (!clean || clean.match(/^-{3,}$/)) return null;
+                  if (line.match(/^##\s/)) return <div key={i} style={{ fontSize: 12, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 14, marginBottom: 4 }}>{clean.replace(/^#+\s*/, "")}</div>;
+                  if (line.match(/^###\s/)) return <div key={i} style={{ fontSize: 13, fontWeight: 700, color: T.loud, marginTop: 10, marginBottom: 4 }}>{clean.replace(/^#+\s*/, "")}</div>;
+                  if (line.match(/^[-*]\s/)) return <div key={i} style={{ fontSize: 12, color: T.body, lineHeight: 1.6, paddingLeft: 12, marginBottom: 2 }}>▪ {clean.replace(/^[-*]\s/, "")}</div>;
+                  return <div key={i} style={{ fontSize: 13, color: T.loud, lineHeight: 1.8, marginBottom: 4 }}>{clean}</div>;
+                }).filter(Boolean)}
+              </div>
             </div>
           )}
 

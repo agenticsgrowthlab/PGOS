@@ -416,18 +416,18 @@ async function buildDelivery(sql, org) {
     sql`SELECT * FROM user_preferences WHERE org_id=${org.id} LIMIT 1`,
   ]);
 
-  const pres = makePres("PI Planning");
-  addCover(pres, "PI Planning Package", org.name);
+  const pres = makePres("Quarterly Planning");
+  addCover(pres, "Quarterly Planning Package", org.name);
 
   // Roadmap overview
   contentSlide(pres, "Program Roadmap — Approved Initiatives", inis.map(i => ({
     label: i.slug,
     value: `${i.title}${i.roadmap_start ? ` · ${i.roadmap_start} → ${i.roadmap_end || "TBD"}` : ""}`,
-  })), { subtitle: "Program Increment delivery schedule" });
+  })), { subtitle: "Quarterly delivery schedule" });
 
   inis.forEach(ini => {
-    if (ini.pi_planning) {
-      contentSlide(pres, `PI Plan — ${ini.title}`, ini.pi_planning.split("\n").filter(l => l.trim()).slice(0, 10).map(l => l.trim()));
+    if (ini.pi_planning || ini.roadmap_start) {
+      contentSlide(pres, `Quarterly Plan — ${ini.title}`, ini.pi_planning.split("\n").filter(l => l.trim()).slice(0, 10).map(l => l.trim()));
     }
   });
   return pres;
@@ -645,6 +645,85 @@ async function buildOutcome(sql, org) {
   return pres;
 }
 
+// ─── STAGE 8: CAMPAIGN LAUNCH ──────────────────────────────────
+async function buildCampaignLaunch(sql, org) {
+  const initiatives = await sql\`SELECT * FROM initiatives WHERE org_id=\${org.id} AND stage IN ('gtm','measure','closed') ORDER BY sort_order\`;
+  const pres = makePres(\`\${org.name} — Campaign Launch\`);
+  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  addCover(pres, "Stage 8: Campaign Launch", "Go-to-market execution, launch calendar & content strategy", today);
+  addSection(pres, "Campaign Launch — Stage 8", "GTM Execution & Launch Readiness");
+
+  for (const ini of initiatives) {
+    contentSlide(pres, ini.title, [
+      { label: "Positioning", value: (ini.gtm_positioning || "").slice(0, 120) },
+      { label: "Target Segment", value: (ini.gtm_segment || "").slice(0, 80) },
+      { label: "Channel Strategy", value: (ini.gtm_channel_strategy || "").slice(0, 120) },
+      { label: "Campaign Intel", value: (ini.gtm_campaign_intel || "").slice(0, 120) },
+      { label: "Launch Criteria", value: (ini.launch_criteria || "").slice(0, 120) },
+    ].filter(r => r.value));
+
+    // Launch calendar slide
+    if (ini.launch_calendar && Array.isArray(JSON.parse(ini.launch_calendar || "[]"))) {
+      let cal;
+      try { cal = JSON.parse(ini.launch_calendar); } catch(e) { cal = []; }
+      if (cal.length) {
+        contentSlide(pres, \`Launch Calendar — \${ini.title}\`, cal.slice(0, 10).map(t => ({
+          label: t.date ? new Date(t.date).toLocaleDateString("en-US", {month:"short", day:"numeric"}) : "TBD",
+          value: \`[\${(t.type||"task").toUpperCase()}] \${t.title}\${t.owner ? \` · \${t.owner}\` : ""}\`,
+        })));
+      }
+    }
+
+    // Content calendar slide
+    if (ini.gtm_content_calendar) {
+      const slide = pres.addSlide();
+      slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:7.5, fill:{color:B.navyDk} });
+      slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:0.12, h:7.5, fill:{color:B.gold} });
+      slide.addShape(pres.ShapeType.rect, { x:0, y:0, w:13.3, h:1.0, fill:{color:"1B3A6B"} });
+      slide.addText(ini.slug, { x:0.25, y:0.15, w:3, h:0.3, fontSize:9, color:B.gold, bold:true, charSpacing:2 });
+      slide.addText("30-DAY CONTENT CALENDAR", { x:0.25, y:0.5, w:10, h:0.4, fontSize:16, bold:true, color:B.white });
+      slide.addText(ini.gtm_content_calendar.slice(0, 800) + (ini.gtm_content_calendar.length > 800 ? "…" : ""),
+        { x:0.25, y:1.15, w:12.8, h:6.0, fontSize:10, color:B.offWhite, lineSpacingMultiple:1.4, valign:"top", wrap:true });
+    }
+  }
+  return pres;
+}
+
+// ─── STAGE 6: SPRINT GOALS ─────────────────────────────────────
+async function buildSprintGoals(sql, org) {
+  const initiatives = await sql\`SELECT * FROM initiatives WHERE org_id=\${org.id} AND approved=true ORDER BY sort_order\`;
+  const pres = makePres(\`\${org.name} — Sprint Goals\`);
+  const today = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+
+  addCover(pres, "Stage 6: Sprint Goals", "User story assignments, sprint goals & capacity planning", today);
+  addSection(pres, "Sprint Goals — Stage 6", "Delivery Sequencing & Sprint Execution Plan");
+
+  for (const ini of initiatives) {
+    const epicsText = ini.epics || "";
+    const storyLines = epicsText.split("\n")
+      .filter(l => /US-|Story ID|As a /i.test(l))
+      .slice(0, 12)
+      .map(l => l.replace(/^\s*[-*#]+\s*/, "").replace(/\*\*/g, "").trim())
+      .filter(Boolean);
+
+    let assignments = {};
+    try { assignments = JSON.parse(ini.sprint_assignments || "{}"); } catch(e) {}
+
+    contentSlide(pres, ini.title, [
+      { label: "Epics", value: `${(epicsText.match(/E-\d+/g) || []).length} epics defined` },
+      { label: "Stories", value: storyLines.length ? `${storyLines.length} user stories` : "Generate epics to populate" },
+      { label: "Sprint Assignments", value: Object.keys(assignments).length ? `${Object.keys(assignments).length} stories assigned` : "Drag stories to assign" },
+    ]);
+
+    if (storyLines.length) {
+      contentSlide(pres, \`User Stories — \${ini.title}\`, storyLines.map(l => l));
+    }
+  }
+  return pres;
+}
+
+
 // ─── Page router ──────────────────────────────────────────────
 const PAGE_MAP = {
   dashboard:  { builder: buildDashboard,    filename: "PGOS_Dashboard.pptx" },
@@ -654,14 +733,19 @@ const PAGE_MAP = {
   execreview: { builder: (s,o) => buildInitiatives(s,o,"review","Executive Review — Stage 3"), filename: "PGOS_ExecReview.pptx" },
   definition: { builder: (s,o) => buildInitiatives(s,o,"definition","Product Definition — Stage 5"), filename: "PGOS_Definition.pptx" },
   portfolio:  { builder: buildPortfolio,    filename: "PGOS_Portfolio.pptx" },
-  delivery:   { builder: buildDelivery,          filename: "PGI_PIPlanning.pptx" },
+  roadmap:    { builder: buildDelivery,          filename: "PGI_QuarterlyPlanning.pptx" },
+  delivery:   { builder: buildDelivery,          filename: "PGI_QuarterlyPlanning.pptx" },
+  sprint_goals: { builder: buildSprintGoals,     filename: "PGOS_SprintGoals.pptx" },
   investment_contract: { builder: buildDeliveryReadiness, filename: "PGI_DeliveryReadiness.pptx" },
   competitors:{ builder: buildCompetitors,  filename: "PGOS_CompetitiveAnalysis.pptx" },
   leadership: { builder: buildLeadership,   filename: "PGOS_Leadership_Overview.pptx" },
-  gtm:        { builder: (s,o) => buildInitiatives(s,o,"handoff","Go-To-Market — Stage 8"), filename: "PGOS_GTM.pptx" },
+  gtm:        { builder: buildCampaignLaunch, filename: "PGOS_GTM_Strategy.pptx" },
+  campaign_launch: { builder: buildCampaignLaunch, filename: "PGOS_CampaignLaunch.pptx" },
   handoff:    { builder: (s,o) => buildInitiatives(s,o,"handoff","Engineering Handoff — Stage 7"), filename: "PGOS_Handoff.pptx" },
-  measure:    { builder: buildMeasure,       filename: "PGOS_Measure_Stage8.pptx" },
-  outcome:    { builder: buildOutcome,       filename: "PGOS_Outcome_Stage9.pptx" },
+  measure:    { builder: buildMeasure,       filename: "PGOS_Measure.pptx" },
+  measure_data: { builder: buildMeasure,     filename: "PGOS_Measure.pptx" },
+  outcome:    { builder: buildOutcome,       filename: "PGOS_Outcome_Stage11.pptx" },
+  lessons:    { builder: buildOutcome,       filename: "PGOS_LessonsLearned.pptx" },
 };
 
 // ─── Handler ──────────────────────────────────────────────────

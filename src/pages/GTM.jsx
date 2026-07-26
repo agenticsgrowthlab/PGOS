@@ -285,8 +285,8 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
 
   return (
     <div>
-      <div style={css.h2}>Go-To-Market · Stage 8</div>
-      <div style={css.sub}>Positioning, launch planning, and campaign intelligence — powered by everything PGOS knows about this initiative.</div>
+      <div style={css.h2}>GTM Strategy · Stage 7</div>
+      <div style={css.sub}>Positioning, ICP, channel strategy, and campaign intelligence — the strategic foundation for launch.</div>
 
       {/* Initiative context bar */}
       <div style={{ background: T.ink2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 16px", marginBottom: 24, display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
@@ -314,9 +314,7 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
         <button style={css.btnOut} onClick={() => generate("full")} disabled={loading.full}>
           {loading.full ? "◆ Generating GTM Package..." : "◆ Generate Full GTM Package"}
         </button>
-        <button style={css.btnOut} onClick={() => generate("calendar")} disabled={loading.calendar}>
-          {loading.calendar ? "◆ Building Calendar..." : "◆ Generate Launch Calendar"}
-        </button>
+
 
       </div>
 
@@ -399,16 +397,6 @@ Channel Strategy: ${ini.gtm_channel_strategy || ""}
             />
           </div>
         </div>
-      </Section>
-
-      {/* Launch Calendar */}
-      <Section title="Launch Calendar">
-        <LaunchCalendar tasks={calTasks} onUpdate={saveCalendar} />
-      </Section>
-
-      {/* Social / Launch Content */}
-      <Section title="30-Day Launch Content Calendar (LinkedIn · Twitter/X · Email · Blog · Press Release)">
-        <SocialPosts posts={socialPosts} onUpdate={saveSocial} loading={loading} onGenerate={generateChannel} />
       </Section>
 
       {/* Notes */}

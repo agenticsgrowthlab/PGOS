@@ -5,9 +5,6 @@ import { bootstrapCompany } from "../../lib/api";
 
 export function Sidebar({ view, setView }) {
   const { initiatives, orgs, orgId, switchOrg, addOrg, switchingOrg } = useApp();
-  const approved = initiatives.filter(i => i.approved).length;
-  const total = initiatives.length;
-
   // New org modal state
   const [showNewOrgModal, setShowNewOrgModal] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
@@ -166,11 +163,6 @@ export function Sidebar({ view, setView }) {
         )}
       </div>
 
-      {/* Stats */}
-      <div style={{ fontSize: 11, color: T.muted, padding: "8px 16px 4px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {approved} approved · {total} total
-      </div>
-
       {/* Nav */}
       <nav style={{ flex: 1, padding: "4px 0", overflow: "auto" }}>
 
@@ -198,23 +190,17 @@ export function Sidebar({ view, setView }) {
         {sep("s3")}
 
         {sectionLabel("Go-To-Market")}
-        {navBtn("gtm",         "Stage 7 · GTM Strategy")}
-        {navBtn("measure",     "Stage 8 · Campaign Launch")}
+        {navBtn("gtm",            "Stage 7 · GTM Strategy")}
+        {navBtn("campaign_launch","Stage 8 · Campaign Launch")}
 
         {sep("s4")}
 
         {sectionLabel("Measure & Learn")}
         {navBtn("measure_data", "Stage 9 · Measure")}
-        {navBtn("outcome",      "Stage 10 · Outcome Summary")}
-        {navBtn("lessons",      "Stage 11 · Lessons Learned")}
+        {navBtn("lessons",      "Stage 10 · Lessons Learned")}
+        {navBtn("outcome",      "Stage 11 · Outcome Summary")}
 
         {sep("s5")}
-
-        {/* Chatty hint */}
-        <div style={{ padding: "5px 16px", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 13, color: T.gold }}>◆</span>
-          <span style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>Chatty — bottom right ↘</span>
-        </div>
 
         {sep("s6")}
 
@@ -222,7 +208,6 @@ export function Sidebar({ view, setView }) {
         {navBtn("ncm_framework",     "NCM Framework")}
         {navBtn("ref_guide",         "How To Use PGI")}
         {navBtn("ref_scores",        "Score Methodology")}
-        {navBtn("thought_leadership","Thought Leadership")}
 
       </nav>
 

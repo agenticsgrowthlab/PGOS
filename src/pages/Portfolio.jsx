@@ -4,7 +4,7 @@ import { AIBox, Tag } from "../components/ui";
 import { useApp } from "../contexts/AppContext";
 import { callAI } from "../lib/api";
 
-// ─── Portfolio ────────────────────────────────────────────────----
+// ─── Portfolio ────────────────────────────────────────────────
 export function Portfolio({ setView }) {
   const { initiatives, foundation, updateIni, roadmapLastSaved, saveRoadmapTimestamp } = useApp();
   const [aiSummary, setAiSummary] = useState("");
@@ -190,7 +190,7 @@ export function Portfolio({ setView }) {
   );
 }
 
-// ─── PI Planning — Interactive Gantt Timeline ─────────────────
+// ─── Quarterly Planning — Interactive Gantt Timeline ─────────────────
 const BAR_COLORS = [
   "#D4A843","#2E6DA4","#2ECC71","#9B59B6","#1ABC9C",
   "#E8913A","#E74C3C","#7FB3D3","#F39C12","#27AE60",
@@ -369,7 +369,7 @@ function GanttTimeline({ initiatives, updateIni, roadmapLastSaved, saveRoadmapTi
   );
 }
 
-// ─── PI Planning ──────────────────────────────────────────────
+// ─── Roadmap Planning ──────────────────────────────────────────────
 export function PIPlanning() {
   const { initiatives, foundation, updateIni, roadmapLastSaved, saveRoadmapTimestamp } = useApp();
   const [loading, setLoading] = useState(false);
@@ -406,23 +406,23 @@ export function PIPlanning() {
 
   return (
     <div>
-      <div style={css.h2}>PI Planning</div>
+      <div style={css.h2}>Roadmap Planning · Stage 4</div>
       <div style={css.sub}>Program Increment planning — interactive roadmap, objectives, risks, and dependencies.</div>
 
       <GanttTimeline initiatives={initiatives} updateIni={updateIni} roadmapLastSaved={roadmapLastSaved} saveRoadmapTimestamp={saveRoadmapTimestamp} />
 
       <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
         <button style={css.btnGold} onClick={genPI} disabled={loading || !approved.length}>
-          {loading ? "Generating…" : "◆ Generate PI Planning Package"}
+          {loading ? "Generating…" : "◆ Generate Quarterly Planning Package"}
         </button>
         {!approved.length && <span style={{ fontSize:12, color:T.muted }}>Approve at least one initiative first</span>}
       </div>
 
-      {loading && <AIBox label="◆ PI Planning Advisor — Building Package" loading />}
+      {loading && <AIBox label="◆ Quarterly Planning Advisor — Building Package" loading />}
 
       {piCards && (
         <div>
-          <div style={{ fontSize:11, fontWeight:700, color:T.gold, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>PI Planning Package</div>
+          <div style={{ fontSize:11, fontWeight:700, color:T.gold, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:14 }}>Quarterly Planning Package</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
             {piCards.map(card => (
               <div key={card.key} style={{ ...css.card, borderLeft:`3px solid ${card.color}`, margin:0 }}>
@@ -447,12 +447,12 @@ export function PIPlanning() {
         </div>
       )}
 
-      {/* PI Planning Chatty hint — shown when cards are live */}
+      {/* Roadmap Planning Chatty hint — shown when cards are live */}
       {piCards && (
         <div style={{ ...css.card, marginTop:12, background:"rgba(212,168,67,0.06)", border:`1px solid ${T.goldB}`, display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:18, color:T.gold }}>◆</span>
           <div style={{ fontSize:12, color:T.muted }}>
-            <strong style={{ color:T.gold }}>Chatty knows you're on PI Planning.</strong>
+            <strong style={{ color:T.gold }}>Chatty knows you're on Roadmap Planning.</strong>
             {" "}Ask: <em>"Help me deepen the Risks card"</em> or <em>"Who are my cross-team dependencies?"</em> and Chatty will update the cards directly.
           </div>
         </div>
@@ -473,7 +473,7 @@ const HANDOFF_SECTIONS = [
   { key: "risks",      label: "Risk Register (ROAM)",     icon: "△", aiKey: "risks" },
   { key: "telemetry",  label: "Telemetry Readiness",      icon: "◑", aiKey: "telemetry" },
   { key: "testcases",  label: "Test Cases",               icon: "◻", aiKey: "testcases" },
-  { key: "pi",         label: "PI Planning & Estimates",  icon: "◎", aiKey: null },
+  { key: "pi",         label: "Quarterly Planning & Estimates",  icon: "◎", aiKey: null },
   { key: "gonogo",     label: "Go/No-Go Checklist",       icon: "✓", aiKey: null },
 ];
 
@@ -607,7 +607,7 @@ function GoNoGo({ ini }) {
     { label: "Epics & Stories generated", done: !!ini.epics, required: true },
     { label: "Risk Register (ROAM) complete", done: !!ini.riskReg, required: true },
     { label: "Engineering estimate entered", done: !!(ini.engSpend?.estimate || ini.engSpend?.sprints), required: false },
-    { label: "PI Planning objectives set", done: !!ini.piPlanning, required: false },
+    { label: "Quarterly planning objectives set", done: !!ini.pi_planning, required: false },
   ];
   const required = checks.filter(c => c.required);
   const optional = checks.filter(c => !c.required);
@@ -761,18 +761,18 @@ function PITab({ ini, updateIni }) {
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <button style={css.btnGold} onClick={genPI} disabled={loading}>
-          {loading ? "Generating…" : "◆ Generate PI Planning Package"}
+          {loading ? "Generating…" : "◆ Generate Quarterly Planning Package"}
         </button>
-        {loading && <AIBox label="◆ PI Planning — Building Package" loading />}
+        {loading && <AIBox label="◆ Quarterly Planning — Building Package" loading />}
       </div>
       {ini.piPlanning ? (
         <div style={{ background: "#1C2640", borderRadius: 8, padding: 14 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>PI Planning Package</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7A99", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Quarterly Planning Package</div>
           <TextSection text={ini.piPlanning} placeholder="" />
         </div>
       ) : (
         <div style={{ background: "#1C2640", borderRadius: 8, padding: 16, color: "#6B7A99", fontSize: 13, fontStyle: "italic" }}>
-          No PI Planning package generated yet. Click the button above to generate objectives, risks, dependencies, capacity assessment, and confidence vote.
+          No Quarterly Planning package generated yet. Click the button above to generate objectives, risks, dependencies, capacity assessment, and confidence vote.
         </div>
       )}
     </div>
@@ -989,27 +989,87 @@ function parseStories(epicsText, iniTitle, iniSlug) {
   const stories = [];
   const lines = epicsText.split("\n");
   let currentEpic = "";
-  lines.forEach(line => {
-    const epicMatch = line.match(/^#+\s*E-?(\d+)[:\s]+(.+)/i) || line.match(/^Epic\s*(\d+)[:\s]+(.+)/i);
-    if (epicMatch) currentEpic = `E-${epicMatch[1].padStart(2,"0")}`;
-    const storyMatch = line.match(/^\s*-?\s*(US-\d+|S-\d+|Story\s*\d+)[:\s]+(.+)/i)
-      || line.match(/^\s*(?:Story ID:\s*)?(US-\d+)[:\s]+(.+)/i);
-    if (storyMatch) {
+  let pendingStoryId = null;
+
+  lines.forEach((line, idx) => {
+    const clean = line.replace(/\*\*/g, "").replace(/^\s*[-*>]+\s*/, "").trim();
+
+    // Epic detection
+    const epicMatch = clean.match(/^E-?(\d+)[:\s–-]+(.+)/i)
+      || clean.match(/^#+\s*E-?(\d+)[:\s]+(.+)/i)
+      || clean.match(/^Epic\s*(\d+)[:\s–-]+(.+)/i);
+    if (epicMatch) { currentEpic = `E-${epicMatch[1].padStart(2,"0")}`; return; }
+
+    // "Story ID: US-XX" on its own line (AI often puts ID on one line, title on next)
+    const storyIdLine = clean.match(/^(?:Story\s*ID[:\s]+)?(US-\d+|S-\d+)(\s*[:\s–-]\s*(.+))?$/i);
+    if (storyIdLine) {
+      const id = storyIdLine[1].toUpperCase();
+      const titlePart = (storyIdLine[3] || "").trim();
+      pendingStoryId = id;
+      if (titlePart && titlePart.length > 3) {
+        stories.push({
+          id: `${iniSlug || "INI"}-${id}`,
+          label: titlePart.slice(0, 80),
+          epic: currentEpic,
+          ini: iniTitle,
+          points: (() => { const m = line.match(/(\d+)\s*(?:story\s*)?points?/i); return m ? parseInt(m[1]) : null; })(),
+        });
+        pendingStoryId = null;
+      }
+      return;
+    }
+
+    // Inline: "- US-01: Title text" or "**US-01** Title"
+    const inlineMatch = clean.match(/^(US-\d+|S-\d+)[:\s–-]+(.+)/i)
+      || clean.match(/^(?:Story\s*ID:\s*)?(US-\d+)[:\s–-]+(.+)/i);
+    if (inlineMatch) {
+      const id = inlineMatch[1].toUpperCase();
+      const label = (inlineMatch[2] || "").replace(/\*\*/g,"").trim().slice(0,80);
+      if (label.length > 2) {
+        stories.push({
+          id: `${iniSlug || "INI"}-${id}`,
+          label,
+          epic: currentEpic,
+          ini: iniTitle,
+          points: (() => { const m = line.match(/(\d+)\s*(?:story\s*)?points?/i); return m ? parseInt(m[1]) : null; })(),
+        });
+        pendingStoryId = null;
+      }
+      return;
+    }
+
+    // "As a [user]..." line — use as label for pending story ID
+    const asAMatch = clean.match(/^As a (.+?),\s*I want (.+?)(?:[,.]\s*so that (.+))?$/i);
+    if (asAMatch && pendingStoryId) {
+      const label = clean.slice(0, 80);
       stories.push({
-        id: `${iniSlug || "INI"}-${storyMatch[1]}`,
-        label: storyMatch[2].replace(/\*\*/g,"").trim().slice(0,80),
+        id: `${iniSlug || "INI"}-${pendingStoryId}`,
+        label,
         epic: currentEpic,
         ini: iniTitle,
-        points: (() => { const m = line.match(/(\d+)\s*(?:story\s*)?points?/i); return m ? parseInt(m[1]) : null; })(),
+        points: null,
       });
+      pendingStoryId = null;
+      return;
     }
-    // Also catch "As a..." lines after a Story ID reference
-    const asMatch = line.match(/^\s*As a (.+?),\s*I want (.+?)(?:,\s*so that (.+))?$/i);
-    if (asMatch && stories.length > 0 && !stories[stories.length-1].label.startsWith("As")) {
-      // enrich last story if it has a generic label
+
+    // Bold-prefixed story: **US-01** — Title
+    const boldMatch = clean.match(/\*\*(US-\d+|S-\d+)\*\*[:\s–-]+(.+)/i);
+    if (boldMatch) {
+      stories.push({
+        id: `${iniSlug || "INI"}-${boldMatch[1].toUpperCase()}`,
+        label: boldMatch[2].trim().slice(0, 80),
+        epic: currentEpic,
+        ini: iniTitle,
+        points: null,
+      });
+      pendingStoryId = null;
     }
   });
-  return stories;
+
+  // Deduplicate by id
+  const seen = new Set();
+  return stories.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
 }
 
 export function SprintGoals({ setView }) {
@@ -1480,7 +1540,7 @@ const PAGE_BUBBLES = {
     { label: "Sharpen my ROI story", prompt: "Help me strengthen the ROI case for my initiative. What financial and strategic angles should I highlight?" },
   ],
   delivery: [
-    { label: "Help me with PI Risks", prompt: "Let's work on the Risks card for my PI Planning package. Ask me targeted questions to identify and document risks for this program increment." },
+    { label: "Help me with Quarterly Planning Risks", prompt: "Let's work on the Risks card for my Quarterly Planning package. Ask me targeted questions to identify and document risks for this program increment." },
     { label: "Who are my dependencies?", prompt: "Help me identify and document cross-team dependencies for my current PI. What teams and integrations should I be thinking about?" },
     { label: "Draft PI Objectives", prompt: "Help me write strong PI Objectives for my approved initiatives. Ask me what you need about each one." },
     { label: "Run a confidence vote", prompt: "Walk me through a PI confidence vote. What factors should my team consider, and what score would you recommend based on current data?" },
