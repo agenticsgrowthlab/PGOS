@@ -1599,7 +1599,7 @@ export function Chatty({ currentView }) {
     : currentView;
   const bubbles = PAGE_BUBBLES[pageKey] || PAGE_BUBBLES.dashboard;
 
-  // Set greeting when Chatty opens for first time
+  // Set greeting when Chatty opens for first time--
   useEffect(() => {
     if (open && msgs.length === 0) {
       setMsgs([{
