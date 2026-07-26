@@ -71,6 +71,10 @@ function buildMessages(action, payload) {
       "You are a senior product manager assembling a complete engineering handoff package. Create a comprehensive, PI-ready handoff document. Include all sections: Initiative Overview, Business Context, Problem & Opportunity, Strategic Alignment, Customer Research Summary, Personas Summary, Current vs Future Journey Key Points, Jobs To Be Done, Use Cases, Epics & Stories, Risk Register (ROAM), Engineering Estimates & Team Structure, Definition of Done, Success Metrics, Dependencies, Open Questions for Engineering, Go/No-Go Checklist.",
     portfolio_analysis:
       "You are a SAFe Portfolio Manager. Analyze this portfolio and provide: 1) Top 3 recommended for next PI, with rationale, 2) One initiative that should be deferred (with reason), 3) Portfolio balance assessment (strategic coverage, risk profile), 4) One dependency concern across initiatives. Be specific and executive-ready.",
+    suggest_initiatives:
+      "You are a Chief Product Officer. Return ONLY valid JSON — no markdown, no explanation, no preamble. Your output will be parsed directly by JSON.parse().",
+    populate_initiative:
+      "You are a Senior Product Manager. Return ONLY valid JSON — no markdown, no explanation, no preamble. Your output will be parsed directly by JSON.parse().",
     investment_contract:
       "You are a senior product investment advisor. Based on the initiative context provided, generate a precise Investment Contract that will serve as the measurement agreement before delivery begins. Be specific, quantified, and realistic. Every metric must be traceable to something the team can actually measure. Format your response as a JSON object with these exact keys: primary_metric, baseline, target, secondary_metrics (array of {metric, baseline, target}), telemetry_source, review_window_days, economic_outcome, narrative. The narrative should be 2-3 sentences summarizing the investment thesis and what success looks like.",
     chatty:
@@ -93,12 +97,15 @@ function buildMessages(action, payload) {
 
     case "suggest_initiatives": {
       const existing = (payload.initiatives || []).map(i => i.title).join(", ");
-      userContent = `You are a Chief Product Officer advising on portfolio strategy. Return ONLY valid JSON, no markdown fences.
+      const themes = (payload.foundation?.themes || []).map(t => t?.name || t).filter(Boolean).join(", ");
+      const capabilities = (payload.foundation?.capabilities || []).map(c => c?.name || c).filter(Boolean).join(", ");
+      const competitors = (payload.foundation?.competitors || []).map(c => c?.name || c).filter(Boolean).join(", ");
+      userContent = `Return ONLY valid JSON, no markdown fences, no explanation.
 
 ${orgCtx}
-Strategic Themes: ${(payload.foundation?.themes || []).map(t => t.name).join(", ")}
-Capabilities: ${(payload.foundation?.capabilities || []).map(c => c.name).join(", ")}
-Competitors: ${(payload.foundation?.competitors || []).map(c => c.name).join(", ")}
+Strategic Themes: ${themes || "Not set"}
+Capabilities: ${capabilities || "Not set"}
+Competitors: ${competitors || "Not set"}
 Existing Initiatives: ${existing || "None yet"}
 
 Identify the 3 highest-leverage initiatives this company should consider that are NOT already in the pipeline.
@@ -119,12 +126,15 @@ Return a JSON array of exactly 3 objects:
 
     case "populate_initiative": {
       const idea = payload.idea || {};
-      userContent = `You are a Senior Product Manager. A PM has proposed the following initiative. Your job is to fully flesh it out using everything known about the company. Return ONLY valid JSON, no markdown fences.
+      const pThemes = (payload.foundation?.themes || []).map(t => t?.name || t).filter(Boolean).join(", ");
+      const pCaps = (payload.foundation?.capabilities || []).map(c => c?.name || c).filter(Boolean).join(", ");
+      const pComps = (payload.foundation?.competitors || []).map(c => c?.name || c).filter(Boolean).join(", ");
+      userContent = `Return ONLY valid JSON, no markdown fences, no explanation.
 
 ${orgCtx}
-Strategic Themes: ${(payload.foundation?.themes || []).map(t => t.name).join(", ")}
-Capabilities: ${(payload.foundation?.capabilities || []).map(c => c.name).join(", ")}
-Competitors: ${(payload.foundation?.competitors || []).map(c => c.name).join(", ")}
+Strategic Themes: ${pThemes || "Not set"}
+Capabilities: ${pCaps || "Not set"}
+Competitors: ${pComps || "Not set"}
 
 PROPOSED INITIATIVE:
 Title: ${idea.title || ""}
