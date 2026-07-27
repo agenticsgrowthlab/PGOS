@@ -1573,46 +1573,55 @@ const STAGE_META = {
 
 // ─── Stage List View ──────────────────────────────────────────
 // ─── Sprint Goals · Stage 6 ────────────────────────────────────
-// ─── Extract Given/When/Then AC from epics text per story ──────
+// ─── Extract AC from epics text — handles US-XX and Story N.M formats ─
 function extractStoryAC(epicsText) {
-  // Returns { [rawStoryId]: acText } — keyed by bare US-XX id (no slug prefix)
+  // Returns { [storyKey]: acText }
+  // storyKey = US-01 (for US-XX format) OR normalized title slug (for Story N.M format)
   if (!epicsText) return {};
   const result = {};
   const lines = epicsText.split("\n");
-  let currentStoryId = null;
+  let currentStoryKey = null;
   let acLines = [];
 
   const flush = () => {
-    if (currentStoryId && acLines.length) {
-      result[currentStoryId] = acLines.join("\n").trim();
+    if (currentStoryKey && acLines.length) {
+      result[currentStoryKey] = acLines.join("\n").trim();
     }
-    currentStoryId = null;
+    currentStoryKey = null;
     acLines = [];
   };
+
+  const normalizeTitle = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 60);
 
   lines.forEach(line => {
     const clean = line.replace(/\*\*/g, "").replace(/\*/g, "").replace(/^#+\s*/, "").trim();
     if (!clean) return;
 
     // Epic line — reset story context
-    if (/^E-?\d+[:\s]/i.test(clean) || /^Epic\s*\d+[:\s]/i.test(clean)) {
+    if (/^E-?\d+[:\s]/i.test(clean) || /^Epic\s*[\d]+[:\s]/i.test(clean) || /^EPIC\s*\d+/i.test(clean)) {
+      flush(); return;
+    }
+
+    // Story N.M — Title  (e.g. "Story 1.1 — Safety Triage Screen")
+    const storyNM = clean.match(/^Story\s+(\d+\.\d+)\s*[–—-]+\s*(.+)/i);
+    if (storyNM) {
       flush();
+      currentStoryKey = "story_" + storyNM[1].replace(".", "_") + "_" + normalizeTitle(storyNM[2]);
       return;
     }
 
-    // Story line — start new story context
-    const usMatch = clean.match(/^(US-\d+|S-\d+)[:\s–-]+/i)
+    // US-XX or S-XX format
+    const usMatch = clean.match(/^(US-\d+|S-\d+)[:\s–—-]+/i)
       || clean.match(/^Story\s*(?:ID)?[:\s]+(US-\d+|S-\d+)/i);
     if (usMatch) {
       flush();
-      const rawId = (usMatch[1] || usMatch[0]).toUpperCase().replace(/.*?(US-\d+|S-\d+).*/i, "$1").trim();
-      currentStoryId = rawId;
+      currentStoryKey = (usMatch[1] || "").toUpperCase().match(/(US-\d+|S-\d+)/i)?.[0] || null;
       return;
     }
 
-    // AC lines — Given/When/Then/Acceptance Criteria
-    if (currentStoryId) {
-      if (/^(Given|When|Then|And|But|Acceptance Criteria|AC:|- )/i.test(clean)) {
+    // Capture AC lines
+    if (currentStoryKey) {
+      if (/^(Given|When|Then|And|But|Acceptance Criteria|AC:|Acceptance:|Criteria:|•|- )/i.test(clean)) {
         acLines.push(clean);
       }
     }
@@ -1630,16 +1639,37 @@ function parseStories(epicsText, iniTitle, iniSlug) {
   let pendingStoryId = null;
   let storyCounter = 0;
 
+  const normalizeTitle = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 60);
+
   lines.forEach((line) => {
-    // Strip markdown bold/italic, heading markers
     const raw = line.replace(/\*\*/g, "").replace(/\*/g, "").replace(/^#+\s*/, "");
     const clean = raw.replace(/^\s*[-\u2022>|]+\s*/, "").trim();
     if (!clean) return;
 
     // ── Epic detection ──────────────────────────────────────────
-    if (/^E-?\d+[:\s]/i.test(clean) || /^Epic\s*\d+[:\s]/i.test(clean)) {
+    if (/^E-?\d+[:\s]/i.test(clean) || /^Epic\s*\d+[:\s]/i.test(clean) || /^EPIC\s*\d+/i.test(clean)) {
       const m = clean.match(/\d+/);
       if (m) currentEpic = "E-" + m[0].padStart(2, "0");
+      pendingStoryId = null;
+      return;
+    }
+
+    // ── Story N.M — Title  (e.g. "Story 1.1 — Safety Triage Screen") ──
+    const storyNM = clean.match(/^Story\s+(\d+\.\d+)\s*[\u2013\u2014-]+\s*(.+)/i);
+    if (storyNM) {
+      const num = storyNM[1];
+      const title = storyNM[2].trim();
+      const storyKey = "story_" + num.replace(".", "_") + "_" + normalizeTitle(title);
+      const displayId = "S-" + num.replace(".", "-");
+      stories.push({
+        id: (iniSlug || "INI") + "-" + displayId,
+        storyKey,
+        label: title.slice(0, 80),
+        epic: currentEpic,
+        ini: iniTitle,
+        points: extractPts(line),
+      });
+      pendingStoryId = null;
       return;
     }
 
@@ -1687,7 +1717,7 @@ function parseStories(epicsText, iniTitle, iniSlug) {
       return;
     }
 
-    // ── Attach story points to last story ───────────────────────
+    // ── Story Points attachment ─────────────────────────────────
     if (/^Story\s*Points?[:\s]/i.test(clean) && stories.length) {
       const m = clean.match(/(\d+)/);
       if (m) stories[stories.length - 1].points = parseInt(m[1]);
@@ -1901,10 +1931,12 @@ export function SprintGoals({ setView }) {
         const acMap = extractStoryAC(ini.epics);
         const stories = parseStories(ini.epics, ini.title, ini.slug);
         stories.forEach(story => {
-          // story.id is like "MER-001-US-01" — extract trailing US-XX
+          // Try storyKey first (Story N.M format), then trailing US-XX
           const bareMatch = story.id.match(/(US-\d+|S-\d+)$/i);
           const bareId = bareMatch ? bareMatch[1].toUpperCase() : "";
-          const ac = bareId ? (acMap[bareId] || "") : "";
+          const ac = (story.storyKey && acMap[story.storyKey])
+            || (bareId && acMap[bareId])
+            || "";
           if (!ac) return;
           if (!all[story.id]) {
             all[story.id] = { ac, note: "", labels: [], customLabels: [] };
