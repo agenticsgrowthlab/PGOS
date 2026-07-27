@@ -1660,9 +1660,10 @@ function parseStories(epicsText, iniTitle, iniSlug) {
       const num = storyNM[1];
       const title = storyNM[2].trim();
       const storyKey = "story_" + num.replace(".", "_") + "_" + normalizeTitle(title);
-      const displayId = "S-" + num.replace(".", "-");
+      // Use label-based stable ID so assignments survive parser changes
+      const stableId = (iniSlug || "INI") + "_story_" + normalizeTitle(title);
       stories.push({
-        id: (iniSlug || "INI") + "-" + displayId,
+        id: stableId,
         storyKey,
         label: title.slice(0, 80),
         epic: currentEpic,
@@ -1905,13 +1906,7 @@ export function SprintGoals({ setView }) {
   ]);
 
   // Load sprint assignments across all initiatives
-  const [assignments, setAssignments] = useState(() => {
-    const all = {};
-    initiatives.forEach(ini => {
-      try { Object.assign(all, JSON.parse(ini.sprint_assignments || "{}")); } catch(e) {}
-    });
-    return all;
-  });
+  const [assignments, setAssignments] = useState({});
 
   // story_details: { [storyId]: { ac, note, labels, customLabels } }
   // useEffect (not useState) so it re-runs when initiatives finish loading
@@ -1919,29 +1914,60 @@ export function SprintGoals({ setView }) {
 
   useEffect(() => {
     if (!initiatives?.length) return;
-    setDetails(prev => {
-      const all = { ...prev };
-      // Merge saved story_details from DB
+
+    // Parse all stories with current parser (stable label-based IDs)
+    const allParsed = initiatives.flatMap(ini =>
+      parseStories(ini.epics, ini.title, ini.slug)
+    );
+
+    // ── Load assignments from DB + migrate old IDs to new stable IDs ──
+    const savedAssignments = {};
+    initiatives.forEach(ini => {
+      try { Object.assign(savedAssignments, JSON.parse(ini.sprint_assignments || "{}")); } catch(e) {}
+    });
+
+    setAssignments(() => {
+      const next = {};
+      Object.keys(savedAssignments).forEach(oldId => {
+        const sprintVal = savedAssignments[oldId];
+        // If ID still matches a current story, keep it
+        const exact = allParsed.find(s => s.id === oldId);
+        if (exact) { next[oldId] = sprintVal; return; }
+        // Otherwise fuzzy-match by normalizing label against old ID
+        const oldNorm = oldId.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const match = allParsed.find(s => {
+          const sNorm = s.label.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return sNorm.length > 8 && (
+            oldNorm.includes(sNorm.slice(0, 12)) ||
+            sNorm.includes(oldNorm.slice(-12))
+          );
+        });
+        next[match ? match.id : oldId] = sprintVal;
+      });
+      return next;
+    });
+
+    // ── Load + backfill story_details with AC from epics ─────────────
+    setDetails(() => {
+      const all = {};
+      // Load saved details from DB
       initiatives.forEach(ini => {
         try { Object.assign(all, JSON.parse(ini.story_details || "{}")); } catch(e) {}
       });
-      // Pre-populate AC from epics for any story missing AC
+      // Backfill AC for any story with missing AC
       initiatives.forEach(ini => {
         if (!ini.epics?.trim()) return;
         const acMap = extractStoryAC(ini.epics);
-        const stories = parseStories(ini.epics, ini.title, ini.slug);
-        stories.forEach(story => {
-          // Try storyKey first (Story N.M format), then trailing US-XX
+        parseStories(ini.epics, ini.title, ini.slug).forEach(story => {
           const bareMatch = story.id.match(/(US-\d+|S-\d+)$/i);
           const bareId = bareMatch ? bareMatch[1].toUpperCase() : "";
           const ac = (story.storyKey && acMap[story.storyKey])
             || (bareId && acMap[bareId])
             || "";
           if (!ac) return;
-          if (!all[story.id]) {
-            all[story.id] = { ac, note: "", labels: [], customLabels: [] };
-          } else if (!all[story.id].ac) {
-            all[story.id] = { ...all[story.id], ac };
+          // Always write AC — overwrite empty, create if missing
+          if (!all[story.id] || !all[story.id].ac) {
+            all[story.id] = { ...(all[story.id] || { note: "", labels: [], customLabels: [] }), ac };
           }
         });
       });
