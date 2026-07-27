@@ -1,5 +1,5 @@
 /**
- * /api/ai  — Single AI endpoint for all PGOS AI operations---
+ * /api/ai  — Single AI endpoint for all PGOS AI operations
  *
  * Body: { action, payload }
  *
@@ -325,11 +325,11 @@ Numbered list of 8-12 specific functional requirements (FR-01 through FR-12). Ea
       break;
 
     case "future_journey":
-      userContent = `${orgCtx}\n${iniCtx}\nCurrent State Journey: ${(ini.current_journey || "").substring(0, 400)}`;
+      userContent = `${orgCtx}\n${iniCtx}\nCurrent State Journey: ${(ini.currentJourney || "").substring(0, 400)}`;
       break;
 
     case "jtbd":
-      userContent = `${orgCtx}\n${iniCtx}\nPersonas: ${(ini.personas || "").substring(0, 300)}\nCurrent Journey: ${(ini.current_journey || "").substring(0, 300)}`;
+      userContent = `${orgCtx}\n${iniCtx}\nPersonas: ${(ini.personas || "").substring(0, 300)}\nCurrent Journey: ${(ini.currentJourney || "").substring(0, 300)}`;
       break;
 
     case "use_cases":
@@ -337,7 +337,7 @@ Numbered list of 8-12 specific functional requirements (FR-01 through FR-12). Ea
       break;
 
     case "epics":
-      userContent = `${orgCtx}\n${iniCtx}\nUse Cases: ${(ini.use_cases || "").substring(0, 500)}\nJTBD: ${(ini.jtbd || "").substring(0, 300)}`;
+      userContent = `${orgCtx}\n${iniCtx}\nUse Cases: ${(ini.usecases || "").substring(0, 500)}\nJTBD: ${(ini.jtbd || "").substring(0, 300)}`;
       break;
 
     case "risk_register":
@@ -347,13 +347,13 @@ Numbered list of 8-12 specific functional requirements (FR-01 through FR-12). Ea
     case "pi_planning": {
       const approved = (initiatives || []).filter(i => i.approved);
       userContent = `${orgCtx}\nApproved Initiatives:\n${approved.map(i =>
-        `\n--- ${i.title} ---\nEpics: ${(i.epics || "Not yet defined").substring(0, 300)}\nRisks: ${(i.risk_register || "Not assessed").substring(0, 200)}`
+        `\n--- ${i.title} ---\nEpics: ${(i.epics || "Not yet defined").substring(0, 300)}\nRisks: ${(i.riskReg || "Not assessed").substring(0, 200)}`
       ).join("\n")}`;
       break;
     }
 
     case "handoff":
-      userContent = `${orgCtx}\n${iniCtx}\nApproved by: ${ini.approved_by} on ${ini.approved_date}\nPersonas: ${(ini.personas || "Not generated").substring(0, 300)}\nJTBD: ${(ini.jtbd || "Not generated").substring(0, 300)}\nCurrent Journey: ${(ini.current_journey || "").substring(0, 250)}\nFuture Journey: ${(ini.future_journey || "").substring(0, 250)}\nUse Cases: ${(ini.use_cases || "Not generated").substring(0, 400)}\nEpics & Stories: ${(ini.epics || "Not generated").substring(0, 500)}\nRisk Register: ${(ini.risk_register || "Not generated").substring(0, 300)}\nEng Estimate: ${ini.eng_estimate ? `$${(ini.eng_estimate / 1000).toFixed(0)}K, ${ini.eng_teams} teams, ${ini.eng_sprints} sprints` : "Not estimated"}`;
+      userContent = `${orgCtx}\n${iniCtx}\nApproved by: ${ini.approved_by} on ${ini.approved_date}\nPersonas: ${(ini.personas || "Not generated").substring(0, 300)}\nJTBD: ${(ini.jtbd || "Not generated").substring(0, 300)}\nCurrent Journey: ${(ini.currentJourney || "").substring(0, 250)}\nFuture Journey: ${(ini.futureJourney || "").substring(0, 250)}\nUse Cases: ${(ini.usecases || "Not generated").substring(0, 400)}\nEpics & Stories: ${(ini.epics || "Not generated").substring(0, 500)}\nRisk Register: ${(ini.riskReg || "Not generated").substring(0, 300)}\nEng Estimate: ${ini.engSpend?.estimate ? `$${(ini.engSpend.estimate / 1000).toFixed(0)}K, ${ini.engSpend.teams || "?"} teams, ${ini.engSpend.sprints || "?"} sprints` : "Not estimated"}`;
       break;
 
     case "investment_contract": {

@@ -1499,16 +1499,16 @@ export function Handoff({ setView }) {
             {HANDOFF_SECTIONS.map(s => {
               const sectionData = {
                 overview: true,
-                prd: !!ini.prd,
-                personas: !!ini.personas,
-                journey: !!ini.currentJourney || !!ini.futureJourney,
-                jtbd: !!ini.jtbd,
-                usecases: !!ini.usecases,
-                epics: !!ini.epics,
-                risks: !!ini.riskReg,
-                telemetry: !!ini.telemetry,
-                testcases: !!ini.testcases,
-                pi: !!ini.piPlanning || !!ini.engSpend?.sprints,
+                prd: !!ini.prd?.trim(),
+                personas: !!ini.personas?.trim(),
+                journey: !!(ini.currentJourney?.trim() || ini.futureJourney?.trim()),
+                jtbd: !!ini.jtbd?.trim(),
+                usecases: !!ini.usecases?.trim(),
+                epics: !!ini.epics?.trim(),
+                risks: !!ini.riskReg?.trim(),
+                telemetry: !!ini.telemetry?.trim(),
+                testcases: !!ini.testcases?.trim(),
+                pi: !!(ini.piPlanning?.trim() || ini.engSpend?.sprints),
                 gonogo: true,
               };
               const done = sectionData[s.key];
@@ -1897,11 +1897,14 @@ export function SprintGoals({ setView }) {
       });
       // Pre-populate AC from epics for any story missing AC
       initiatives.forEach(ini => {
-        const acMap = extractStoryAC(ini.epics || "");
+        if (!ini.epics?.trim()) return;
+        const acMap = extractStoryAC(ini.epics);
         const stories = parseStories(ini.epics, ini.title, ini.slug);
         stories.forEach(story => {
-          const bareId = story.id.replace(/^.*?(US-\d+|S-\d+)$/i, "$1").toUpperCase();
-          const ac = acMap[bareId] || "";
+          // story.id is like "MER-001-US-01" — extract trailing US-XX
+          const bareMatch = story.id.match(/(US-\d+|S-\d+)$/i);
+          const bareId = bareMatch ? bareMatch[1].toUpperCase() : "";
+          const ac = bareId ? (acMap[bareId] || "") : "";
           if (!ac) return;
           if (!all[story.id]) {
             all[story.id] = { ac, note: "", labels: [], customLabels: [] };
