@@ -1915,46 +1915,60 @@ export function SprintGoals({ setView }) {
   useEffect(() => {
     if (!initiatives?.length) return;
 
-    // Parse all stories with current parser (stable label-based IDs)
     const allParsed = initiatives.flatMap(ini =>
       parseStories(ini.epics, ini.title, ini.slug)
     );
 
-    // ── Load assignments from DB + migrate old IDs to new stable IDs ──
+    // Debug: log what IDs the parser produces vs what's saved
     const savedAssignments = {};
+    const savedDetails = {};
     initiatives.forEach(ini => {
       try { Object.assign(savedAssignments, JSON.parse(ini.sprint_assignments || "{}")); } catch(e) {}
+      try { Object.assign(savedDetails,    JSON.parse(ini.story_details    || "{}")); } catch(e) {}
     });
 
+    console.log("[SPRINT DEBUG] Parser IDs:", allParsed.map(s => s.id));
+    console.log("[SPRINT DEBUG] Saved assignment keys:", Object.keys(savedAssignments));
+    console.log("[SPRINT DEBUG] Saved detail keys:", Object.keys(savedDetails));
+
+    // ── Assignments: map saved keys → current IDs ─────────────────────
+    // Strategy: for every saved key, find the current story whose label
+    // best matches, regardless of ID format changes.
     setAssignments(() => {
       const next = {};
-      Object.keys(savedAssignments).forEach(oldId => {
-        const sprintVal = savedAssignments[oldId];
-        // If ID still matches a current story, keep it
-        const exact = allParsed.find(s => s.id === oldId);
-        if (exact) { next[oldId] = sprintVal; return; }
-        // Otherwise fuzzy-match by normalizing label against old ID
-        const oldNorm = oldId.toLowerCase().replace(/[^a-z0-9]/g, "");
+      // Direct matches first
+      Object.keys(savedAssignments).forEach(savedId => {
+        if (allParsed.some(s => s.id === savedId)) {
+          next[savedId] = savedAssignments[savedId];
+        }
+      });
+      // Fuzzy matches for unresolved keys
+      Object.keys(savedAssignments).forEach(savedId => {
+        if (next[savedId]) return; // already matched
+        const sprint = savedAssignments[savedId];
+        const savedNorm = savedId.toLowerCase().replace(/[^a-z0-9]/g, "");
         const match = allParsed.find(s => {
           const sNorm = s.label.toLowerCase().replace(/[^a-z0-9]/g, "");
-          return sNorm.length > 8 && (
-            oldNorm.includes(sNorm.slice(0, 12)) ||
-            sNorm.includes(oldNorm.slice(-12))
+          // Match if normalized label appears in saved ID or vice versa
+          return sNorm.length > 6 && (
+            savedNorm.includes(sNorm.slice(0, 14)) ||
+            sNorm.slice(0, 14).split("").every(ch => savedNorm.includes(ch))
           );
         });
-        next[match ? match.id : oldId] = sprintVal;
+        if (match) {
+          console.log("[SPRINT DEBUG] Remapped:", savedId, "->", match.id);
+          next[match.id] = sprint;
+        } else {
+          console.log("[SPRINT DEBUG] Could not remap:", savedId);
+          next[savedId] = sprint; // keep as-is
+        }
       });
       return next;
     });
 
-    // ── Load + backfill story_details with AC from epics ─────────────
+    // ── Details: backfill AC from epics for all stories ──────────────
     setDetails(() => {
-      const all = {};
-      // Load saved details from DB
-      initiatives.forEach(ini => {
-        try { Object.assign(all, JSON.parse(ini.story_details || "{}")); } catch(e) {}
-      });
-      // Backfill AC for any story with missing AC
+      const all = { ...savedDetails };
       initiatives.forEach(ini => {
         if (!ini.epics?.trim()) return;
         const acMap = extractStoryAC(ini.epics);
@@ -1964,11 +1978,18 @@ export function SprintGoals({ setView }) {
           const ac = (story.storyKey && acMap[story.storyKey])
             || (bareId && acMap[bareId])
             || "";
-          if (!ac) return;
-          // Always write AC — overwrite empty, create if missing
-          if (!all[story.id] || !all[story.id].ac) {
-            all[story.id] = { ...(all[story.id] || { note: "", labels: [], customLabels: [] }), ac };
-          }
+          // Write AC to BOTH the current ID and any saved-detail ID that
+          // matches this story (handles old-ID entries in savedDetails)
+          const targets = [story.id];
+          Object.keys(savedDetails).forEach(k => {
+            const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g,"");
+            const sNorm = story.label.toLowerCase().replace(/[^a-z0-9]/g,"");
+            if (sNorm.length > 6 && kNorm.includes(sNorm.slice(0,12))) targets.push(k);
+          });
+          targets.forEach(id => {
+            if (!all[id]) all[id] = { ac, note:"", labels:[], customLabels:[] };
+            else if (!all[id].ac && ac) all[id] = { ...all[id], ac };
+          });
         });
       });
       return all;
