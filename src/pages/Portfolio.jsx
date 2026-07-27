@@ -1664,6 +1664,7 @@ function parseStories(epicsText, iniTitle, iniSlug) {
   const lines = epicsText.split("\n");
   let currentEpic = "";
   let pendingStoryId = null;
+  let pendingStoryKey = null;
   let storyCounter = 0;
 
   const normalizeTitle = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 60);
