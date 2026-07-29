@@ -443,13 +443,18 @@ export function Ideas({ setView }) {
   const [aiQ, setAiQ] = useState(""); const [loadingQ, setLoadingQ] = useState(false);
 
   // Wizard state
-  const [wizardMode, setWizardMode] = useState(null); // null | "suggest" | "populate"
+  const [wizardMode, setWizardMode] = useState(null); // null | "suggest" | "populate" | "wireframe"
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
   const [userIdea, setUserIdea] = useState("");
   const [populating, setPopulating] = useState(false);
   const [populated, setPopulated] = useState(null); // the AI-populated fields
+
+  // Wireframe mode state
+  const [wireframeHtml, setWireframeHtml] = useState("");
+  const [wireframeName, setWireframeName] = useState("");
+  const [wireframeAnalyzing, setWireframeAnalyzing] = useState(false);
 
   const askAI = async () => {
     if (!form.title) return;
@@ -500,13 +505,38 @@ export function Ideas({ setView }) {
     setPopulating(false);
   };
 
+  // Mode 3: Populate from HTML wireframe
+  const populateFromWireframe = async () => {
+    if (!wireframeHtml.trim()) return;
+    setWireframeAnalyzing(true);
+    setPopulated(null);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "populate_initiative",
+          payload: {
+            foundation,
+            idea: `[HTML WIREFRAME ANALYSIS]\n\nAnalyze the following HTML wireframe and infer the product initiative it represents. Extract:\n- What product/feature this wireframe is building\n- The user problem it solves\n- The opportunity it unlocks\n- Who the users are\n\nThen generate a complete initiative package exactly as you would for a text idea.\n\nWIREFRAME HTML:\n${wireframeHtml.slice(0, 12000)}`,
+          },
+        }),
+      });
+      const data = await res.json();
+      const text = (data.text || "").replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(text);
+      setPopulated(parsed);
+    } catch(e) { console.error("wireframe populate error", e); }
+    setWireframeAnalyzing(false);
+  };
+
   // Create from populated data
   const createFromPopulated = async () => {
     if (!populated) return;
     const ini = await addInitiative({
       title: populated.title,
-      source: selectedSuggestion ? "AI Suggestion" : "PM Idea",
-      source_detail: selectedSuggestion ? "AI Portfolio Analysis" : userIdea,
+      source: wizardMode === "wireframe" ? "HTML Wireframe" : selectedSuggestion ? "AI Suggestion" : "PM Idea",
+      source_detail: wizardMode === "wireframe" ? wireframeName : selectedSuggestion ? "AI Portfolio Analysis" : userIdea,
       problem: populated.problem,
       opportunity: populated.opportunity,
     });
@@ -560,7 +590,7 @@ export function Ideas({ setView }) {
 
       {/* ── Mode selector ── */}
       {!wizardMode && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 24 }}>
           <div onClick={() => setWizardMode("manual")} style={{ ...cardStyle, cursor: "pointer", border: `1px solid ${T.border}`, textAlign: "center", padding: 24 }}>
             <div style={{ fontSize: 24, marginBottom: 8 }}>✏️</div>
             <div style={{ fontWeight: 700, color: T.loud, marginBottom: 4 }}>Manual Entry</div>
@@ -575,6 +605,11 @@ export function Ideas({ setView }) {
             <div style={{ fontSize: 24, marginBottom: 8 }}>🧠</div>
             <div style={{ fontWeight: 700, color: T.gold, marginBottom: 4 }}>AI Suggest</div>
             <div style={{ fontSize: 12, color: T.muted }}>What should we build next? AI analyzes the portfolio</div>
+          </div>
+          <div onClick={() => setWizardMode("wireframe")} style={{ ...cardStyle, cursor: "pointer", border: `1px solid ${T.steel}40`, textAlign: "center", padding: 24 }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>🖼</div>
+            <div style={{ fontWeight: 700, color: T.steel, marginBottom: 4 }}>HTML Wireframe</div>
+            <div style={{ fontSize: 12, color: T.muted }}>Upload a wireframe — AI reads the UI and builds the initiative</div>
           </div>
         </div>
       )}
@@ -675,6 +710,97 @@ export function Ideas({ setView }) {
             <div style={{ color: T.gold, fontWeight: 700, marginBottom: 8 }}>◆ Building your initiative...</div>
             <div style={{ color: T.muted, fontSize: 12 }}>AI is generating problem statement, opportunity, evidence framing, PIVOT scores, exec brief, and personas</div>
           </div>}
+        </>
+      )}
+
+      {/* ── Wireframe mode ── */}
+      {wizardMode === "wireframe" && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.loud }}>🖼 HTML Wireframe → Initiative</div>
+            <button style={css.btnGhost} onClick={() => { setWizardMode(null); setPopulated(null); setWireframeHtml(""); setWireframeName(""); }}>← Back</button>
+          </div>
+
+          {!populated && (
+            <div style={cardStyle}>
+              <label style={css.label}>Upload HTML Wireframe</label>
+              <div style={{ marginBottom: 12 }}>
+                <input
+                  type="file"
+                  accept=".html,.htm"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setWireframeName(file.name);
+                    const reader = new FileReader();
+                    reader.onload = ev => setWireframeHtml(ev.target.result || "");
+                    reader.readAsText(file);
+                  }}
+                  style={{ color: T.loud, fontSize: 13 }}
+                />
+              </div>
+              {wireframeName && (
+                <div style={{ fontSize: 12, color: T.steel, marginBottom: 12 }}>
+                  ✓ Loaded: <strong>{wireframeName}</strong> ({Math.round(wireframeHtml.length / 1024)}KB)
+                </div>
+              )}
+              {wireframeHtml && (
+                <>
+                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 12, lineHeight: 1.6 }}>
+                    AI will analyze the wireframe's UI structure, infer the product initiative, and generate a complete package — title, problem, opportunity, personas, PIVOT scores, and more.
+                  </div>
+                  <button
+                    style={{ ...css.btnGold, marginTop: 4 }}
+                    onClick={populateFromWireframe}
+                    disabled={wireframeAnalyzing}
+                  >
+                    {wireframeAnalyzing ? "◆ AI is reading your wireframe..." : "◆ Analyze Wireframe & Build Initiative →"}
+                  </button>
+                </>
+              )}
+              {!wireframeHtml && (
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 8 }}>
+                  Accepts .html or .htm files. Works best with single-page wireframes or prototype screens.
+                </div>
+              )}
+            </div>
+          )}
+
+          {populated && !wireframeAnalyzing && (
+            <>
+              <div style={{ ...cardStyle, border: `1px solid ${T.steel}40`, background: "#0D1726" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: T.steel, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>🖼 Wireframe Analysis — AI-Generated Initiative Package</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: T.loud, marginBottom: 16 }}>{populated.title}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>PROBLEM INFERRED FROM UI</div>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{populated.problem}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>OPPORTUNITY</div>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{populated.opportunity}</div>
+                  </div>
+                </div>
+                {populated.exec_brief && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: T.muted, marginBottom: 4 }}>EXECUTIVE BRIEF</div>
+                    <div style={{ fontSize: 13, color: T.loud, lineHeight: 1.6 }}>{populated.exec_brief}</div>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                  {["pivot_p","pivot_i","pivot_v","pivot_o","pivot_t"].map(k => populated[k] && (
+                    <span key={k} style={{ fontSize: 11, color: T.steel, background: T.steel + "22", borderRadius: 4, padding: "2px 8px" }}>
+                      {k.replace("pivot_","")}={populated[k]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+                <button style={css.btnGhost} onClick={() => { setPopulated(null); setWireframeHtml(""); setWireframeName(""); }}>↺ Try Another</button>
+                <button style={css.btnGold} onClick={createFromPopulated}>Create Initiative →</button>
+              </div>
+            </>
+          )}
         </>
       )}
 
