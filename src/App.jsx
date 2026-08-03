@@ -263,18 +263,27 @@ function Inner() {
             <DownloadPPTBtn page={view} label="↓ PPT" />
             {/* Leadership deck always in header */}
             <DownloadPPTBtn page="leadership" label="↓ Leadership Deck" gold />
-            {/* Guide toggle */}
-            <button
-              onClick={() => setGuideOpen(o => !o)}
-              style={{
-                fontSize: 11, padding: "5px 12px", borderRadius: 6,
-                background: guideOpen ? T.gold : "transparent",
-                border: `1px solid ${guideOpen ? T.gold : T.border}`,
-                color: guideOpen ? T.ink : T.muted,
-                cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap",
-              }}
-            >◆ Guide</button>
           </div>
+        </div>
+
+        {/* Guide banner — full width, always visible */}
+        <div
+          onClick={() => setGuideOpen(o => !o)}
+          style={{
+            background: guideOpen ? T.goldD : "#0D1726",
+            borderBottom: `1px solid ${T.gold}40`,
+            padding: "8px 32px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            cursor: "pointer",
+            transition: "background 0.2s",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ color: T.gold, fontSize: 13 }}>◆</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.1em" }}>Product Growth Intelligence — Platform Guide</span>
+            <span style={{ fontSize: 11, color: T.muted }}>Step-by-step walkthrough of the full 11-stage lifecycle</span>
+          </div>
+          <span style={{ fontSize: 11, color: T.gold, fontWeight: 700 }}>{guideOpen ? "▲ Close Guide" : "▼ Open Guide"}</span>
         </div>
 
         {/* Page content */}
