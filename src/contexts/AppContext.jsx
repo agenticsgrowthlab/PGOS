@@ -36,6 +36,7 @@ export function AppProvider({ children }) {
   const [userName, setUserName] = useState("Nicole");
   const [roadmapLastSaved, setRoadmapLastSaved] = useState(null);
   const [competitors, setCompetitors] = useState([]);
+  const DEMO_ORG_ID = "9365aa73-1b2c-41ce-aab6-4a0554477517";
 
   // ── Load full org data by id ─────────────────────────────────
   const loadOrgData = useCallback(async (orgIdToLoad) => {
@@ -69,6 +70,14 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function bootstrap() {
       try {
+        // ── Demo mode: ?ref=demo loads AGL org only, hides switcher ──
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("ref") === "demo") {
+          await loadOrgData(DEMO_ORG_ID);
+          setLoading(false);
+          return;
+        }
+
         const seedRes = await checkSeedStatus();
         if (!seedRes.data?.seeded) {
           setError("Database not seeded. Please run pgos_schema.sql in Neon.");

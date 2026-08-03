@@ -87,7 +87,6 @@ function DownloadPPTBtn({ page, label, gold }) {
 function Inner() {
   const { loading, error, initiatives } = useApp();
   const [view, setView] = useState("dashboard");
-
   if (loading) return <LoadingScreen />;
   if (error)   return <ErrorScreen message={error} />;
 
@@ -137,7 +136,7 @@ function Inner() {
       <Sidebar view={view} setView={setView} />
 
       {/* Main content */}
-      <div style={{ marginLeft: 220, flex: 1, display: "flex", flexDirection: "column" }}>
+      <div style={{ marginLeft: 220, flex: 1, display: "flex", flexDirection: "column", marginTop: 0 }}>
         {/* Top bar */}
         <div style={{ background: T.ink2, borderBottom: `1px solid ${T.border}`, padding: "12px 32px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 40 }}>
           {activeIni && (
