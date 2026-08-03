@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppProvider, useApp } from "./contexts/AppContext";
 import { Sidebar } from "./components/layout/Sidebar";
 import InvestmentContract from "./pages/InvestmentContract";
@@ -83,10 +83,100 @@ function DownloadPPTBtn({ page, label, gold }) {
   );
 }
 
+// ─── Floating Guide Panel ────────────────────────────────────
+const GUIDE_STEPS = [
+  { title: "Welcome to PGI", icon: "◆", body: "Product Growth Intelligence is an 11-stage platform that takes your product from raw idea to measured outcome. Use the sidebar to navigate stages, or follow this guide to explore the key flows." },
+  { title: "Stage 1 — New Ideas", icon: "💡", body: "Start here. Enter a text idea, describe it in one sentence and let AI build the full initiative package, ask AI to suggest what to build next from your portfolio, or upload an HTML wireframe and let AI read the UI and infer the initiative." },
+  { title: "Stage 2 — Discovery", icon: "🔍", body: "Validate your idea. Generate AI-powered personas, journey maps, JTBD statements, use cases, and risk registers. Every section is editable and persisted. Evidence scores track how well-validated each initiative is." },
+  { title: "Stage 3 — Portfolio Review", icon: "📊", body: "See all initiatives scored by PIVOT — a 5-dimension framework measuring Product-Market Fit, Impact, Viability, Organizational Readiness, and Time-to-Value. Click the PIVOT score on any initiative to see the full scoring breakdown." },
+  { title: "Stage 4 — Roadmap & Investment", icon: "🗺", body: "Plan quarters, assign investment, and generate a Delivery Readiness contract. Approved $ amounts are editable directly in the portfolio table and feed quarterly totals automatically." },
+  { title: "Stage 6 — Sprints", icon: "⚡", body: "Your AI-generated epics and user stories appear as cards in the backlog. Drag stories into Sprint 1, 2, or 3. Expand any card to see full acceptance criteria. Use ✕ to remove orphan or duplicate stories." },
+  { title: "Stage 7 — Delivery Handoff", icon: "📋", body: "Generate a full PRD, telemetry plan, test cases, and quarterly PI planning doc. Every section is editable. Click '↓ Word Doc' to export the PRD as a formatted .docx with your branding." },
+  { title: "Stage 8 — Campaign Launch", icon: "🚀", body: "Generate GTM content including social posts, email copy, and press releases. Set your target metric and goal directly in the page — they persist to the initiative." },
+  { title: "Stage 9–11 — Measure & Learn", icon: "📈", body: "Track adoption %, MAU, NPS, CSAT, and revenue outcomes. Link back to your OKR. Get a PIVOT Predicted vs Actual composite score. Choose to Iterate, Expand, Sunset, or Archive the initiative." },
+  { title: "Always Available", icon: "🤖", body: "Chatty C is your AI assistant — click the ◆ button in the bottom right at any time to ask questions about your portfolio, generate content, or get strategic recommendations based on your live data." },
+];
+
+function GuidePanel({ onClose }) {
+  const [step, setStep] = useState(0);
+  const [pos, setPos] = useState({ x: window.innerWidth - 380, y: 80 });
+  const [dragging, setDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const current = GUIDE_STEPS[step];
+
+  const onMouseDown = (e) => {
+    setDragging(true);
+    dragOffset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+  };
+  const onMouseMove = (e) => {
+    if (!dragging) return;
+    setPos({ x: e.clientX - dragOffset.current.x, y: e.clientY - dragOffset.current.y });
+  };
+  const onMouseUp = () => setDragging(false);
+
+  return (
+    <div
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      style={{ position: "fixed", inset: 0, zIndex: 8888, pointerEvents: dragging ? "all" : "none" }}
+    >
+      <div
+        style={{
+          position: "fixed", left: pos.x, top: pos.y, width: 340,
+          background: "#0D1726", border: `1px solid ${T.gold}`,
+          borderRadius: 12, boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
+          pointerEvents: "all", userSelect: "none",
+        }}
+      >
+        {/* Drag handle / header */}
+        <div
+          onMouseDown={onMouseDown}
+          style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, cursor: "grab", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: T.gold, fontSize: 14 }}>◆</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.08em" }}>PGI Guide</span>
+            <span style={{ fontSize: 11, color: T.muted }}>Step {step + 1} of {GUIDE_STEPS.length}</span>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>✕</button>
+        </div>
+
+        {/* Step content */}
+        <div style={{ padding: "20px 16px" }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>{current.icon}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.loud, marginBottom: 10 }}>{current.title}</div>
+          <div style={{ fontSize: 13, color: T.body, lineHeight: 1.7 }}>{current.body}</div>
+        </div>
+
+        {/* Progress dots */}
+        <div style={{ padding: "0 16px 8px", display: "flex", gap: 4, justifyContent: "center" }}>
+          {GUIDE_STEPS.map((_, i) => (
+            <div key={i} onClick={() => setStep(i)} style={{ width: 6, height: 6, borderRadius: "50%", background: i === step ? T.gold : T.border, cursor: "pointer", transition: "background 0.2s" }} />
+          ))}
+        </div>
+
+        {/* Nav buttons */}
+        <div style={{ padding: "12px 16px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between" }}>
+          <button
+            onClick={() => setStep(s => Math.max(0, s - 1))}
+            disabled={step === 0}
+            style={{ ...css.btnGhost, fontSize: 12, opacity: step === 0 ? 0.3 : 1 }}
+          >← Prev</button>
+          {step < GUIDE_STEPS.length - 1
+            ? <button onClick={() => setStep(s => s + 1)} style={{ ...css.btnGold, fontSize: 12 }}>Next →</button>
+            : <button onClick={onClose} style={{ ...css.btnGold, fontSize: 12 }}>Done ✓</button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Inner App (has context access) ─────────────────────────
 function Inner() {
   const { loading, error, initiatives } = useApp();
   const [view, setView] = useState("dashboard");
+  const [guideOpen, setGuideOpen] = useState(false);
   if (loading) return <LoadingScreen />;
   if (error)   return <ErrorScreen message={error} />;
 
@@ -173,6 +263,17 @@ function Inner() {
             <DownloadPPTBtn page={view} label="↓ PPT" />
             {/* Leadership deck always in header */}
             <DownloadPPTBtn page="leadership" label="↓ Leadership Deck" gold />
+            {/* Guide toggle */}
+            <button
+              onClick={() => setGuideOpen(o => !o)}
+              style={{
+                fontSize: 11, padding: "5px 12px", borderRadius: 6,
+                background: guideOpen ? T.gold : "transparent",
+                border: `1px solid ${guideOpen ? T.gold : T.border}`,
+                color: guideOpen ? T.ink : T.muted,
+                cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap",
+              }}
+            >◆ Guide</button>
           </div>
         </div>
 
@@ -181,6 +282,9 @@ function Inner() {
           {getContent()}
         </div>
       </div>
+
+      {/* Guide panel */}
+      {guideOpen && <GuidePanel onClose={() => setGuideOpen(false)} />}
 
       {/* Chatty — always available */}
       <Chatty currentView={view} />
