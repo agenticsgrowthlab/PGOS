@@ -270,20 +270,19 @@ function Inner() {
         <div
           onClick={() => setGuideOpen(o => !o)}
           style={{
-            background: guideOpen ? T.goldD : "#0D1726",
-            borderBottom: `1px solid ${T.gold}40`,
+            background: T.gold,
+            borderBottom: `1px solid ${T.gold}`,
             padding: "8px 32px",
             display: "flex", alignItems: "center", justifyContent: "space-between",
             cursor: "pointer",
-            transition: "background 0.2s",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ color: T.gold, fontSize: 13 }}>◆</span>
-            <span style={{ fontSize: 12, fontWeight: 800, color: T.gold, textTransform: "uppercase", letterSpacing: "0.1em" }}>Product Growth Intelligence — Platform Guide</span>
-            <span style={{ fontSize: 11, color: T.muted }}>Step-by-step walkthrough of the full 11-stage lifecycle</span>
+            <span style={{ color: T.ink, fontSize: 13 }}>◆</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: T.ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>Product Growth Intelligence — Platform Guide</span>
+            <span style={{ fontSize: 11, color: T.ink, opacity: 0.7 }}>Step-by-step walkthrough of the full 11-stage lifecycle</span>
           </div>
-          <span style={{ fontSize: 11, color: T.gold, fontWeight: 700 }}>{guideOpen ? "▲ Close Guide" : "▼ Open Guide"}</span>
+          <span style={{ fontSize: 11, color: T.ink, fontWeight: 700 }}>{guideOpen ? "▲ Close Guide" : "▼ Open Guide"}</span>
         </div>
 
         {/* Page content */}
